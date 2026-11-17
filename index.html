@@ -1203,17 +1203,33 @@ let DB = { users: [], requests: [] };
 async function loadDB(){
   if(useFirebase){
     try{
-      const [usersSnap, reqsSnap] = await Promise.all([
-        fbdb.collection('users').get(),
-        fbdb.collection('requests').get()
-      ]);
-      DB.users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      DB.requests = reqsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Caché en localStorage para下次 carga rápida (sin contraseñas)
-      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(e){}
+      // Cargar users y requests por separado para que si uno falla (p.ej. un
+      // usuario no-admin que no tiene permiso de leer TODAS las solicitudes),
+      // el otro al menos cargue.
+      let usersArr = [], reqsArr = [];
+      try{
+        const usersSnap = await fbdb.collection('users').get();
+        usersArr = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }catch(e){
+        console.warn('loadDB: no se pudo leer users (¿permisos?). Usando caché:', e);
+      }
+      try{
+        const reqsSnap = await fbdb.collection('requests').get();
+        reqsArr = reqsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      }catch(e){
+        console.warn('loadDB: no se pudo leer requests (¿permisos?). Usando caché:', e);
+      }
+      DB.users = usersArr;
+      DB.requests = reqsArr;
+      // Si no cargamos nada en vivo, intentar caché local
+      if(DB.users.length===0 && DB.requests.length===0){
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(raw){ try{ DB = JSON.parse(raw); }catch(_){ DB = {users:[],requests:[]}; } }
+      } else {
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(e){}
+      }
     }catch(e){
       console.error('Error leyendo Firestore:', e);
-      // Intenta caché local como respaldo de solo lectura
       const raw = localStorage.getItem(STORAGE_KEY);
       if(raw){ try{ DB = JSON.parse(raw); }catch(_){ DB = {users:[],requests:[]}; } }
     }
@@ -1472,17 +1488,19 @@ async function doLogin(e){
   try{
     const cred = await fbauth.signInWithEmailAndPassword(email, pwd);
     const fbUser = cred.user;
-    // Guardar credenciales en memoria solo si el usuario es admin (para poder crear usuarios desde la UI)
-    // Se borra al cerrar sesión.
-    // Buscar el perfil del usuario en Firestore
-    let userProfile = DB.users.find(u=>u.email && u.email.toLowerCase()===email.toLowerCase());
+    // Buscar el perfil del usuario en Firestore por UID (más eficiente y seguro
+    // que un query por email, porque coincide con el docId = UID de Auth)
+    let userProfile = DB.users.find(u=>u.id===fbUser.uid);
     if(!userProfile){
-      // Intentar leer en vivo desde Firestore (puede no estar en caché)
       try{
-        const snap = await fbdb.collection('users').where('email','==',email.toLowerCase()).limit(1).get();
-        if(!snap.empty){
-          const d = snap.docs[0];
-          userProfile = { id: d.id, ...d.data() };
+        const userDoc = await fbdb.collection('users').doc(fbUser.uid).get();
+        if(userDoc.exists){
+          userProfile = { id: userDoc.id, ...userDoc.data() };
+          // Actualizar caché local
+          if(!DB.users.some(u=>u.id===userProfile.id)){
+            DB.users.push(userProfile);
+            try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(_){}
+          }
         }
       }catch(_){}
     }
@@ -3034,11 +3052,17 @@ window.addEventListener('DOMContentLoaded', async ()=>{
     fbauth.onAuthStateChanged(async (user)=>{
       if(user){
         // Hay sesión activa en Firebase Auth. Validar que tenga perfil en Firestore.
-        let userProfile = DB.users.find(u=>u.email && u.email.toLowerCase()===(user.email||'').toLowerCase());
+        let userProfile = DB.users.find(u=>u.id===user.uid);
         if(!userProfile){
           try{
-            const snap = await fbdb.collection('users').where('email','==',(user.email||'').toLowerCase()).limit(1).get();
-            if(!snap.empty){ const d = snap.docs[0]; userProfile = { id: d.id, ...d.data() }; }
+            const userDoc = await fbdb.collection('users').doc(user.uid).get();
+            if(userDoc.exists){
+              userProfile = { id: userDoc.id, ...userDoc.data() };
+              if(!DB.users.some(u=>u.id===userProfile.id)){
+                DB.users.push(userProfile);
+                try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(_){}
+              }
+            }
           }catch(_){}
         }
         if(userProfile && userProfile.active !== false && !session){
