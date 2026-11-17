@@ -968,7 +968,11 @@
           <h2>Gestión de usuarios</h2>
           <p>Crea perfiles, asígnales departamento y activa o desactiva el acceso.</p>
         </div>
-        <button class="btn" onclick="openUserModal()">+ Nuevo usuario</button>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn ghost" onclick="document.getElementById('importJsonInput').click()">📥 Importar JSON</button>
+          <button class="btn" onclick="openUserModal()">+ Nuevo usuario</button>
+        </div>
+        <input type="file" id="importJsonInput" accept="application/json,.json" style="display:none" onchange="handleImportJson(event)">
       </div>
       <div class="stats" id="userStats"></div>
       <div class="panel">
@@ -1322,15 +1326,24 @@ const SHIFTS = {
   ]
 };
 
-/* Horario semanal oficial por técnico (tal cual aparece en las fotos).
-   Estructura: { userId: { 'Lunes': ['00:00-06:00'], 'Martes': [...], ... } } */
-const SCHEDULE = {
+/* Horario semanal oficial por técnico.
+   IMPORTANTE: el horario ahora se lee del PERFIL de cada usuario en Firestore
+   (campo `schedule`). Este SCHEDULE_DEFAULT solo se usa como valor inicial cuando
+   se crea un usuario nuevo desde el seed-usuarios.js, o como fallback si por
+   algún motivo el perfil no tiene campo schedule.
+   Estructura: { 'Lunes': ['00:00-05:00'], 'Martes': [...], ... } */
+const DAYS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+
+// Horario por defecto para los 8 técnicos conocidos (NOC + Guardias).
+// Se asigna automáticamente al crear el usuario si su nombre coincide.
+// El admin puede editarlo después desde el modal de usuario.
+const SCHEDULE_DEFAULT_BY_NAME = {
   // ===== NOC =====
-  'u2': { // Angello Zamora
+  'Angello Zamora': {
     Lunes:['00:00-05:00'], Martes:[], Miércoles:[], Jueves:[],
     Viernes:['06:00-14:00'], Sábado:['14:00-22:00'], Domingo:['22:00-24:00']
   },
-  'u3': { // Danny Araya
+  'Danny Araya': {
     Lunes:['22:00-24:00'],
     Martes:['00:00-05:00','22:00-24:00'],
     Miércoles:['00:00-05:00','22:00-24:00'],
@@ -1339,27 +1352,25 @@ const SCHEDULE = {
     Sábado:['00:00-06:00','22:00-24:00'],
     Domingo:['00:00-06:00']
   },
-  'u4': { // Nathaly Arias
+  'Nathaly Arias': {
     Lunes:['05:00-13:00'], Martes:['05:00-13:00'],
     Miércoles:['05:00-13:00'], Jueves:['05:00-13:00'],
     Viernes:[], Sábado:['06:00-14:00'], Domingo:['06:00-14:00']
   },
-  'u5': { // Luis Araya
-    Lunes:['13:00-22:00'],
-    Martes:['13:00-22:00'],
-    Miércoles:['13:00-22:00'],
-    Jueves:['13:00-22:00'],
+  'Luis Araya': {
+    Lunes:['13:00-22:00'], Martes:['13:00-22:00'],
+    Miércoles:['13:00-22:00'], Jueves:['13:00-22:00'],
     Viernes:['14:00-22:00'], Sábado:[], Domingo:['14:00-22:00']
   },
   // ===== Guardias =====
-  'u6': { // Yoan de Jesús Fonseca Chaves
+  'Yoan de Jesús Fonseca Chaves': {
     Lunes:['00:00-07:00'], Martes:[], Miércoles:[],
     Jueves:['00:00-07:00','23:00-24:00'],
     Viernes:['00:00-07:00','23:00-24:00'],
     Sábado:['00:00-07:00','23:00-24:00'],
     Domingo:['00:00-07:00','23:00-24:00']
   },
-  'u7': { // Dereck Ramses Vargas Gomez
+  'Dereck Ramses Vargas Gomez': {
     Lunes:['23:00-24:00'],
     Martes:['00:00-07:00','23:00-24:00'],
     Miércoles:['00:00-07:00','23:00-24:00'],
@@ -1368,26 +1379,56 @@ const SCHEDULE = {
     Sábado:['16:00-23:00'],
     Domingo:[]
   },
-  'u8': { // Fabian Andrés Bustos Gonzalez
+  'Fabian Andrés Bustos Gonzalez': {
     Lunes:['16:00-23:00'], Martes:['16:00-23:00'], Miércoles:['16:00-23:00'],
     Jueves:[], Viernes:[],
     Sábado:['07:00-16:00'], Domingo:['16:00-23:00']
   },
-  'u9': { // Diego Jara — turno Día (07:00-16:00) solo el domingo
-    Lunes:[], Martes:[], Miércoles:[],
-    Jueves:[], Viernes:[],
+  'Diego Jara': {
+    Lunes:[], Martes:[], Miércoles:[], Jueves:[], Viernes:[],
     Sábado:[], Domingo:['07:00-16:00']
   }
 };
 
-const DAYS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
-const DEPT_COLORS = {
-  'u2':'#facc15', 'u3':'#3b82f6', 'u4':'#10b981', 'u5':'#ef4444',
-  'u6':'#22d3ee', 'u7':'#a78bfa', 'u8':'#f59e0b', 'u9':'#14b8a6'
+// Colores por defecto para los 8 técnicos conocidos.
+const COLOR_DEFAULT_BY_NAME = {
+  'Angello Zamora':'#facc15',
+  'Danny Araya':'#3b82f6',
+  'Nathaly Arias':'#10b981',
+  'Luis Araya':'#ef4444',
+  'Yoan de Jesús Fonseca Chaves':'#22d3ee',
+  'Dereck Ramses Vargas Gomez':'#a78bfa',
+  'Fabian Andrés Bustos Gonzalez':'#f59e0b',
+  'Diego Jara':'#14b8a6'
 };
 
-// DB se carga asíncronamente en DOMContentLoaded con loadDB()
-// save() está definido arriba en la sección de Firebase
+// Paleta de colores para usuarios nuevos (cuando no tienen color asignado).
+const DEFAULT_COLOR_PALETTE = [
+  '#3b82f6','#10b981','#f59e0b','#ef4444','#a78bfa','#22d3ee','#14b8a6','#facc15',
+  '#ec4899','#84cc16','#06b6d4','#f97316'
+];
+
+// Devuelve el horario de un usuario. Primero mira su perfil; si no tiene, busca
+// por nombre en SCHEDULE_DEFAULT_BY_NAME; si tampoco, devuelve un objeto vacío.
+function getSchedule(userId){
+  const u = DB.users.find(x=>x.id===userId);
+  if(!u) return {};
+  if(u.schedule && typeof u.schedule === 'object') return u.schedule;
+  if(u.name && SCHEDULE_DEFAULT_BY_NAME[u.name]) return SCHEDULE_DEFAULT_BY_NAME[u.name];
+  return {};
+}
+
+// Devuelve el color de un usuario. Primero mira su perfil; si no tiene, busca
+// por nombre; si tampoco, asigna uno por posición en el departamento.
+function getUserColor(u){
+  if(!u) return '#64748b';
+  if(u.color) return u.color;
+  if(u.name && COLOR_DEFAULT_BY_NAME[u.name]) return COLOR_DEFAULT_BY_NAME[u.name];
+  // Asignar color por índice en el depto (para usuarios nuevos)
+  const peers = DB.users.filter(x=>x.dept===u.dept && x.role!=='admin');
+  const idx = peers.findIndex(x=>x.id===u.id);
+  return DEFAULT_COLOR_PALETTE[idx % DEFAULT_COLOR_PALETTE.length];
+}
 
 function uid(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
 function nowStr(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
@@ -1807,11 +1848,11 @@ function datesOfRequest(r){
   return [];
 }
 function userHasShiftOnDate(userId, dateStr){
-  const sch=SCHEDULE[userId]; const dn=dayNameOf(dateStr);
+  const sch=getSchedule(userId); const dn=dayNameOf(dateStr);
   return !!(sch && sch[dn] && sch[dn].length);
 }
 function shiftsTextOnDate(userId, dateStr){
-  const sch=SCHEDULE[userId]; const dn=dayNameOf(dateStr);
+  const sch=getSchedule(userId); const dn=dayNameOf(dateStr);
   if(!sch||!sch[dn]||!sch[dn].length) return '';
   return sch[dn].join(', ');
 }
@@ -2109,12 +2150,12 @@ function buildDeptPanel(dept, weekDates, today, monthNames){
   const users = DB.users.filter(u=>u.dept===dept && u.role!=='admin' && u.active);
   // Leyenda de técnicos
   const legend = users.map(u=>{
-    const c = DEPT_COLORS[u.id] || '#64748b';
+    const c = getUserColor(u);
     return `<span class="lg"><i style="background:${c}"></i>${u.name}</span>`;
   }).join('');
   // Strip con total de horas semanales
   const strip = users.map(u=>{
-    const c = DEPT_COLORS[u.id] || '#64748b';
+    const c = getUserColor(u);
     const total = weeklyHours(u.id);
     return `<span class="ps"><i style="background:${c}"></i>${u.name} <small>· ${total} h/sem</small></span>`;
   }).join('');
@@ -2167,8 +2208,8 @@ function shortName(full){
   return parts[0] + ' ' + parts[parts.length-1];
 }
 
-function weeklyHours(uid){
-  const sch = SCHEDULE[uid];
+function weeklyHours(userId){
+  const sch = getSchedule(userId);
   if(!sch) return 0;
   let total = 0;
   Object.values(sch).forEach(segs=>{
@@ -2334,9 +2375,9 @@ function buildCalCellBlocks(users, dayName, date, hourTick, mode){
   const blocks = [];
 
   users.forEach(u=>{
-    const sch = SCHEDULE[u.id];
+    const sch = getSchedule(u.id);
     const found = (sch && sch[dayName]) ? sch[dayName].find(seg=>coversHour(seg, hourTick)) : null;
-    const c = DEPT_COLORS[u.id] || '#64748b';
+    const c = getUserColor(u);
 
     if(mode==='aplicado'){
       // === CAMBIO DE TURNO APROBADO (solo en la fecha/hora del cambio) ===
@@ -2617,6 +2658,21 @@ function openUserModal(id){
           <option value="false" ${u&&!u.active?'selected':''}>Inactivo</option>
         </select>
       </div>
+      ${dept!=='Admin'?`
+      <div class="field full">
+        <label>Horario semanal oficial</label>
+        <small style="color:var(--muted-2);font-size:11px;margin-bottom:8px;display:block">
+          Para cada día, escribe los turnos en formato <code style="background:var(--bg-2);padding:1px 5px;border-radius:3px">HH:00-HH:00</code>, separados por comas. Ej: <code style="background:var(--bg-2);padding:1px 5px;border-radius:3px">00:00-05:00, 22:00-24:00</code>. Déjalo vacío si ese día no trabaja.
+        </small>
+        <div style="display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center">
+          ${DAYS.map(d=>{
+            const sch = u ? getSchedule(u.id) : {};
+            const val = (sch[d]||[]).join(', ');
+            return `<div style="font-size:12.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">${d}</div>
+              <input type="text" class="sched-input" data-day="${d}" value="${esc(val)}" placeholder="Ej: 00:00-05:00, 22:00-24:00">`;
+          }).join('')}
+        </div>
+      </div>`:''}
     </div>`,
     [
       {label:'Cancelar',cls:'ghost',onclick:closeModal},
@@ -2652,6 +2708,26 @@ function openUserModal(id){
               }
             }
             u.name=name; u.email=email; u.dept=dept; u.role=role; u.active=active;
+            // Leer el horario del modal (si el usuario no es admin)
+            if(dept!=='Admin'){
+              const schedule = {};
+              document.querySelectorAll('.sched-input').forEach(inp=>{
+                const day = inp.dataset.day;
+                const raw = inp.value.trim();
+                if(raw){
+                  // Separar por coma y validar formato HH:00-HH:00
+                  const segs = raw.split(',').map(s=>s.trim()).filter(s=>/^\d{2}:\d{2}\s*-\s*\d{2}:\d{2}$/.test(s.replace(/\s/g,'')));
+                  schedule[day] = segs.map(s=>s.replace(/\s/g,''));
+                } else {
+                  schedule[day] = [];
+                }
+              });
+              u.schedule = schedule;
+              // Asignar color automáticamente si no tiene
+              if(!u.color){
+                u.color = getUserColor(u);
+              }
+            }
             saveUser(u);
             closeModal(); toast('Usuario actualizado','ok'); renderUsuarios();
           } else {
@@ -2667,8 +2743,33 @@ function openUserModal(id){
             }
             const cred = await fbauth.createUserWithEmailAndPassword(email, password);
             const fbUid = cred.user.uid;
+            // Construir el horario desde el modal (si el depto no es Admin)
+            let schedule = null;
+            let color = null;
+            if(dept!=='Admin'){
+              schedule = {};
+              document.querySelectorAll('.sched-input').forEach(inp=>{
+                const day = inp.dataset.day;
+                const raw = inp.value.trim();
+                if(raw){
+                  const segs = raw.split(',').map(s=>s.trim()).filter(s=>/^\d{2}:\d{2}\s*-\s*\d{2}:\d{2}$/.test(s.replace(/\s/g,'')));
+                  schedule[day] = segs.map(s=>s.replace(/\s/g,''));
+                } else {
+                  schedule[day] = [];
+                }
+              });
+              // Si el horario quedó vacío pero el nombre coincide con uno conocido, usar el de defecto
+              const allEmpty = DAYS.every(d => !schedule[d] || schedule[d].length===0);
+              if(allEmpty && SCHEDULE_DEFAULT_BY_NAME[name]){
+                schedule = SCHEDULE_DEFAULT_BY_NAME[name];
+              }
+              // Color: usar el del nombre si existe, sino uno por defecto
+              color = COLOR_DEFAULT_BY_NAME[name] || DEFAULT_COLOR_PALETTE[DB.users.filter(u=>u.dept===dept).length % DEFAULT_COLOR_PALETTE.length];
+            }
             // Guardar el perfil en Firestore usando el UID de Firebase como id
             const profile = { name, email, dept, role, active, createdAt: nowStr(), fbUid };
+            if(schedule) profile.schedule = schedule;
+            if(color) profile.color = color;
             await fbdb.collection('users').doc(fbUid).set(profile);
             // Actualizar caché local
             DB.users.push({ id: fbUid, ...profile });
@@ -2718,6 +2819,192 @@ function toggleModalPwd(btn, inputId){
     input.type = 'text';
     btn.textContent = '🙈';
   }
+}
+
+/* ===================== IMPORTAR USUARIOS DESDE JSON ===================== */
+// Solo el admin ve y puede usar esta función. Lee un archivo JSON con la
+// estructura { users: [ {name, email, password, dept, role, active, color?, schedule?} ] }
+// y crea cada usuario en Firebase Auth + Firestore.
+// Las contraseñas NUNCA se guardan en Firestore: viven en Firebase Auth.
+function handleImportJson(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  // Restablecer el input para permitir re-importar el mismo archivo después
+  event.target.value = '';
+
+  // Validar que el usuario sea admin
+  if(!session || session.role !== 'admin'){
+    toast('Solo el administrador puede importar usuarios.','err');
+    return;
+  }
+  if(!useFirebase || !fbauth){
+    toast('Firebase Auth no disponible. Recarga la página.','err');
+    return;
+  }
+  if(!adminCreds || !adminCreds.email){
+    toast('No se pudieron obtener tus credenciales para re-autenticarte. Cierra sesión, vuelve a iniciar sesión e intenta de nuevo.','err');
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    let data;
+    try{
+      data = JSON.parse(e.target.result);
+    }catch(err){
+      toast('El archivo no es un JSON válido: ' + err.message, 'err');
+      return;
+    }
+    if(!data || !Array.isArray(data.users) || data.users.length === 0){
+      toast('El JSON no contiene un arreglo "users" válido.','err');
+      return;
+    }
+
+    // Validar cada usuario antes de empezar
+    const usersToCreate = data.users;
+    const errors = [];
+    usersToCreate.forEach((u, i) => {
+      if(!u.name) errors.push(`Fila ${i+1}: falta "name"`);
+      if(!u.email) errors.push(`Fila ${i+1} (${u.name||'sin nombre'}): falta "email"`);
+      if(!u.password) errors.push(`Fila ${i+1} (${u.name||u.email||'sin nombre'}): falta "password"`);
+      else if(u.password.length < 8) errors.push(`Fila ${i+1} (${u.email}): contraseña muy corta (mín 8)`);
+      if(!['NOC','Guardias','Admin'].includes(u.dept)) errors.push(`Fila ${i+1} (${u.email}): dept inválido (debe ser NOC, Guardias o Admin)`);
+      if(!['user','admin'].includes(u.role)) errors.push(`Fila ${i+1} (${u.email}): role inválido (debe ser user o admin)`);
+    });
+    if(errors.length > 0){
+      openModal('Errores de validación',
+        `<p style="color:var(--danger);margin-bottom:10px">Se encontraron ${errors.length} error(es) antes de importar:</p>
+         <ul style="margin:0 0 0 18px;padding:0;font-size:12.5px;line-height:1.6">${errors.map(er=>`<li>${er}</li>`).join('')}</ul>`,
+        [{label:'Cerrar', cls:'ghost', onclick:closeModal}]
+      );
+      return;
+    }
+
+    // Confirmar antes de proceder
+    const resumen = usersToCreate.map(u => `<li><b>${u.name}</b> · ${u.email} · ${u.dept}</li>`).join('');
+    openModal('Importar ' + usersToCreate.length + ' usuario(s)',
+      `<p style="margin-bottom:10px">Se van a crear los siguientes usuarios en Firebase Auth + Firestore:</p>
+       <ul style="margin:0 0 12px 18px;padding:0;font-size:12.5px;line-height:1.6">${resumen}</ul>
+       <p style="color:var(--warning);font-size:12px;line-height:1.5;margin-bottom:6px">
+         ⚠️ Se requiere re-autenticarte como admin después de crear cada usuario.
+         Si tu contraseña es incorrecta, se cancelará el resto de la importación.
+       </p>
+       <p style="color:var(--muted-2);font-size:11.5px">
+         Las contraseñas del JSON se usan solo para crear los usuarios en Firebase Auth;
+         no se guardan en Firestore ni en el código.
+       </p>`,
+      [
+        {label:'Cancelar', cls:'ghost', onclick:closeModal},
+        {label:'Importar', cls:'success', onclick:async () => {
+          const ok = [], failed = [];
+          const btn = document.querySelector('#modalFoot .btn:not(.ghost)');
+          const origText = btn ? btn.textContent : '';
+          let needsReauth = false;
+
+          for(let i=0; i<usersToCreate.length; i++){
+            const u = usersToCreate[i];
+            if(btn){ btn.textContent = `Importando ${i+1}/${usersToCreate.length}…`; }
+            try{
+              // Si el usuario ya existe en Auth, lo saltamos con un warning (no lo sobreescribimos)
+              try{
+                const existing = await fbdb.collection('users').where('email','==',u.email.toLowerCase()).limit(1).get();
+                if(!existing.empty){
+                  failed.push({user: u, reason: 'Ya existe un perfil con ese email en Firestore'});
+                  continue;
+                }
+              }catch(_){}
+
+              // Crear en Firebase Auth (esto cambia la sesión al nuevo usuario)
+              const cred = await fbauth.createUserWithEmailAndPassword(u.email, u.password);
+              const fbUid = cred.user.uid;
+
+              // Construir perfil para Firestore (SIN password)
+              const profile = {
+                name: u.name,
+                email: u.email.toLowerCase(),
+                dept: u.dept,
+                role: u.role,
+                active: u.active !== false,
+                createdAt: nowStr(),
+                fbUid: fbUid
+              };
+              if(u.schedule && typeof u.schedule === 'object'){
+                profile.schedule = u.schedule;
+              }
+              if(u.color){
+                profile.color = u.color;
+              } else {
+                // Color automático por posición en el depto
+                const peers = DB.users.filter(x=>x.dept===u.dept);
+                profile.color = DEFAULT_COLOR_PALETTE[peers.length % DEFAULT_COLOR_PALETTE.length];
+              }
+              await fbdb.collection('users').doc(fbUid).set(profile);
+              // Actualizar caché local
+              DB.users.push({ id: fbUid, ...profile });
+              try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(_){}
+              ok.push(u);
+              needsReauth = true;
+            }catch(err){
+              const code = err && err.code ? err.code : '';
+              let reason = err && err.message ? err.message : 'Error desconocido';
+              if(code === 'auth/email-already-in-use') reason = 'Ya existe en Firebase Auth';
+              else if(code === 'auth/weak-password') reason = 'Contraseña muy débil (mín 8)';
+              else if(code === 'auth/invalid-email') reason = 'Email inválido';
+              else if(code === 'auth/operation-not-allowed') reason = 'Email/contraseña no habilitado en Firebase Auth';
+              else if(code === 'auth/network-request-failed') reason = 'Sin conexión';
+              failed.push({user: u, reason});
+            } finally {
+              // Re-autenticar al admin después de cada creación (para preservar su sesión)
+              if(needsReauth){
+                try{
+                  await fbauth.signInWithEmailAndPassword(adminCreds.email, adminCreds.password);
+                }catch(reauthErr){
+                  console.error('Error re-autenticando al admin:', reauthErr);
+                  // Si falla la re-autenticación, no seguimos creando más usuarios
+                  try{ await fbauth.signOut(); }catch(_){}
+                  try{ sessionStorage.removeItem('session'); }catch(_){}
+                  session = null;
+                  adminCreds = null;
+                  closeModal();
+                  document.getElementById('app').style.display = 'none';
+                  document.getElementById('login').style.display = 'flex';
+                  document.querySelector('.roles').style.display = 'grid';
+                  document.getElementById('loginForm').style.display = 'none';
+                  openModal('Re-autenticación fallida',
+                    `<p style="color:var(--danger);margin-bottom:10px">No se pudo re-autenticar al admin después de crear ${ok.length} usuario(s).</p>
+                     <p style="font-size:12.5px">Causa: ${reauthErr && reauthErr.message ? reauthErr.message : 'desconocida'}</p>
+                     <p style="font-size:12.5px;margin-top:8px">Usuarios creados correctamente: ${ok.length} de ${usersToCreate.length}.</p>
+                     <p style="font-size:12.5px;margin-top:8px">Vuelve a iniciar sesión como admin para continuar con los restantes.</p>`,
+                    [{label:'Cerrar', cls:'ghost', onclick:closeModal}]
+                  );
+                  return;
+                }
+                needsReauth = false;
+              }
+            }
+          }
+
+          // Resumen final
+          if(btn){ btn.textContent = origText; btn.disabled = false; }
+          closeModal();
+          renderUsuarios();
+          if(failed.length === 0){
+            toast(`Importación completa: ${ok.length} usuario(s) creado(s).`, 'ok');
+          } else {
+            openModal('Resumen de importación',
+              `<div style="margin-bottom:14px">
+                <span style="color:var(--success);font-weight:600">✓ ${ok.length} creado(s) correctamente</span><br>
+                <span style="color:var(--danger);font-weight:600">✗ ${failed.length} con error</span>
+              </div>
+              ${failed.length ? `<div style="margin-top:10px"><b style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px">Detalle de errores:</b><ul style="margin:8px 0 0 18px;padding:0;font-size:12.5px;line-height:1.6">${failed.map(f=>`<li><b>${f.user.email}</b> — ${f.reason}</li>`).join('')}</ul></div>` : ''}`,
+              [{label:'Cerrar', cls:'ghost', onclick:closeModal}]
+            );
+          }
+        }}
+      ]
+    );
+  };
+  reader.readAsText(file);
 }
 
 function toggleUser(id){
@@ -2777,7 +3064,7 @@ function extractTimeRange(str){
 
 // Devuelve los turnos del dropdown que el usuario realmente tiene en su horario
 function getAvailableShiftsForUser(userId){
-  const sch = SCHEDULE[userId];
+  const sch = getSchedule(userId);
   if(!sch) return [];
   const u = DB.users.find(x=>x.id===userId);
   const dept = u? u.dept : 'NOC';
