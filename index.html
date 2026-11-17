@@ -1488,6 +1488,10 @@ async function doLogin(e){
   try{
     const cred = await fbauth.signInWithEmailAndPassword(email, pwd);
     const fbUser = cred.user;
+    // Cargar la BD completa AHORA que tenemos sesión válida en Firebase Auth.
+    // Esto resuelve el warning "Missing or insufficient permissions" que aparecía
+    // porque loadDB() se ejecutaba antes del login.
+    await loadDB();
     // Buscar el perfil del usuario en Firestore por UID (más eficiente y seguro
     // que un query por email, porque coincide con el docId = UID de Auth)
     let userProfile = DB.users.find(u=>u.id===fbUser.uid);
@@ -3045,13 +3049,15 @@ if('serviceWorker' in navigator){
 /* ===================== INIT ===================== */
 window.addEventListener('DOMContentLoaded', async ()=>{
   applyTheme(getStoredTheme());
-  // Cargar BD desde Firestore
-  await loadDB();
-  // Si Firebase Auth está disponible, restaurar sesión automáticamente al recargar
+  // NO cargamos la BD aquí: las reglas de Firestore exigen un usuario autenticado
+  // para leer users/requests. Cargarla antes del login provocaba el warning
+  // "Missing or insufficient permissions". La BD se carga después del login.
   if(useFirebase && fbauth){
     fbauth.onAuthStateChanged(async (user)=>{
       if(user){
-        // Hay sesión activa en Firebase Auth. Validar que tenga perfil en Firestore.
+        // Hay sesión activa en Firebase Auth. Cargar la BD completa AHORA que tenemos sesión.
+        await loadDB();
+        // Validar que tenga perfil en Firestore.
         let userProfile = DB.users.find(u=>u.id===user.uid);
         if(!userProfile){
           try{
