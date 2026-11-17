@@ -1,0 +1,2862 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+<meta name="theme-color" content="#0b1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NOC & Guardias">
+<meta name="description" content="Sistema de gestión de solicitudes para NOC y Guardias">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16x16.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32x32.png">
+<link rel="icon" type="image/png" sizes="48x48" href="icons/icon-48x48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="icons/icon-96x96.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192x192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512x512.png">
+<link rel="shortcut icon" href="favicon.ico">
+<link rel="manifest" href="manifest.json">
+<title>NOC & Guardias · Gestión de Solicitudes</title>
+<style>
+  :root{
+    --bg:#0b1220;
+    --bg-2:#0f1729;
+    --panel:#141d33;
+    --panel-2:#1a2444;
+    --border:#243056;
+    --border-soft:#1c2747;
+    --text:#e6edf7;
+    --muted:#8a98b8;
+    --muted-2:#5e6b8a;
+    --accent:#3b82f6;
+    --accent-2:#2563eb;
+    --accent-soft:rgba(59,130,246,.15);
+    --success:#10b981;
+    --success-soft:rgba(16,185,129,.15);
+    --warning:#f59e0b;
+    --warning-soft:rgba(245,158,11,.15);
+    --danger:#ef4444;
+    --danger-soft:rgba(239,68,68,.15);
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+    --radius:14px;
+    --calendar-icon-invert:invert(1);
+    --input-bg:#0f1729;
+    --input-bg-2:#0b1220;
+  }
+  /* === MODO CLARO === */
+  [data-theme="light"]{
+    --bg:#f4f6fb;
+    --bg-2:#ffffff;
+    --panel:#ffffff;
+    --panel-2:#f8fafc;
+    --border:#d6deeb;
+    --border-soft:#e3e9f2;
+    --text:#0f1b2e;
+    --muted:#5b6b85;
+    --muted-2:#8a96ad;
+    --accent:#2563eb;
+    --accent-2:#1d4ed8;
+    --accent-soft:rgba(37,99,235,.12);
+    --success:#059669;
+    --success-soft:rgba(5,150,105,.12);
+    --warning:#d97706;
+    --warning-soft:rgba(217,119,6,.12);
+    --danger:#dc2626;
+    --danger-soft:rgba(220,38,38,.10);
+    --shadow:0 10px 30px rgba(15,27,46,.10);
+    --calendar-icon-invert:invert(0);
+    --input-bg:#ffffff;
+    --input-bg-2:#f4f6fb;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Segoe UI',system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    background:radial-gradient(1200px 600px at 80% -10%,rgba(59,130,246,.08),transparent 60%),var(--bg);
+    color:var(--text);
+    font-size:14px;
+    line-height:1.5;
+    min-height:100vh;
+  }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:#243056;border-radius:8px}
+  ::-webkit-scrollbar-thumb:hover{background:#2f3e6e}
+
+  /* ---------- LOGIN ---------- */
+  #login{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+  }
+  .login-card{
+    width:100%;max-width:780px;background:linear-gradient(160deg,var(--panel),var(--panel-2));
+    border:1px solid var(--border);border-radius:20px;padding:40px;box-shadow:var(--shadow);
+  }
+  .login-brand{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+  .brand-logo{
+    width:46px;height:46px;border-radius:12px;display:grid;place-items:center;
+    background:linear-gradient(135deg,var(--accent),#1e40af);font-weight:700;font-size:18px;
+    box-shadow:0 6px 18px rgba(37,99,235,.45);
+  }
+  .login-brand h1{font-size:20px;letter-spacing:.3px}
+  .login-brand small{color:var(--muted);font-size:12px;letter-spacing:.5px;text-transform:uppercase}
+  .login-sub{color:var(--muted);margin:14px 0 28px;font-size:13.5px}
+  .roles{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .role-card{
+    background:var(--bg-2);border:1px solid var(--border);border-radius:14px;padding:22px 18px;
+    cursor:pointer;transition:.18s;position:relative;overflow:hidden;
+  }
+  .role-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 24px rgba(37,99,235,.2)}
+  .role-ico{
+    width:42px;height:42px;border-radius:10px;display:grid;place-items:center;
+    background:var(--accent-soft);color:var(--accent);font-size:20px;margin-bottom:14px;
+  }
+  .role-card h3{font-size:15px;margin-bottom:4px}
+  .role-card p{color:var(--muted);font-size:12.5px;line-height:1.45}
+  .role-card .sel{position:absolute;top:14px;right:14px;color:var(--muted-2);font-size:11px}
+
+  .pick-user{
+    margin-top:18px;padding-top:18px;border-top:1px dashed var(--border);
+  }
+  .pick-user label{display:block;font-size:12px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.6px}
+  .user-chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{
+    background:var(--bg-2);border:1px solid var(--border);color:var(--text);
+    padding:7px 12px;border-radius:999px;font-size:12.5px;cursor:pointer;transition:.15s;
+    display:inline-flex;align-items:center;gap:7px;
+  }
+  .chip:hover{border-color:var(--accent);color:#fff}
+  .chip .dot{width:7px;height:7px;border-radius:50%;background:var(--accent)}
+  .chip.noc .dot{background:#22d3ee}
+  .chip.guardia .dot{background:#a78bfa}
+  .chip.admin .dot{background:var(--accent)}
+  .chip[disabled]{opacity:.45;cursor:not-allowed}
+  .login-hint{margin-top:22px;color:var(--muted-2);font-size:12px;text-align:center}
+
+  /* ---------- FORMULARIO DE LOGIN ---------- */
+  .login-form{
+    margin-top:18px;padding-top:18px;border-top:1px dashed var(--border);
+  }
+  .login-form-head{
+    display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;
+  }
+  .login-form-title{
+    font-size:15px;font-weight:600;color:var(--text);
+  }
+  .login-form-back{
+    background:transparent;border:none;color:var(--muted);cursor:pointer;
+    font-size:12.5px;transition:.15s;
+  }
+  .login-form-back:hover{color:var(--accent)}
+  .login-form .field{margin-bottom:12px}
+  .login-form .field label{
+    display:block;font-size:12px;color:var(--muted);margin-bottom:6px;
+    text-transform:uppercase;letter-spacing:.6px;font-weight:500;
+  }
+  .login-form select,.login-form input{
+    width:100%;
+  }
+  .pwd-wrap{
+    position:relative;display:flex;align-items:center;
+  }
+  .pwd-wrap input{padding-right:38px}
+  .pwd-toggle{
+    position:absolute;right:8px;top:50%;transform:translateY(-50%);
+    background:transparent;border:none;cursor:pointer;color:var(--muted);
+    font-size:16px;padding:4px;line-height:1;
+  }
+  .pwd-toggle:hover{color:var(--accent)}
+  .login-error{
+    background:var(--danger-soft);border-left:3px solid var(--danger);
+    color:var(--danger);padding:8px 12px;border-radius:7px;font-size:12.5px;
+    margin-bottom:10px;
+  }
+  .login-hint-pwd{
+    margin-top:12px;color:var(--muted-2);font-size:11.5px;text-align:center;
+  }
+
+  /* ---------- CAMPO CONTRASEÑA EN MODAL DE USUARIOS ---------- */
+  .pwd-field-wrap{
+    position:relative;display:flex;align-items:center;
+  }
+  .pwd-field-wrap input{padding-right:38px}
+  .pwd-field-wrap .pwd-toggle{
+    position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  }
+
+  /* ---------- APP SHELL ---------- */
+  #app{display:none;min-height:100vh;flex-direction:column}
+  header.topbar{
+    position:sticky;top:0;z-index:30;
+    background:var(--bg);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border);
+    display:flex;align-items:center;gap:18px;padding:12px 22px;
+  }
+  .topbar-brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:.2px}
+  .topbar-brand .logo{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--accent),#1e40af);display:grid;place-items:center;font-size:14px;font-weight:700}
+  .topbar-tabs{display:flex;gap:4px;margin-left:8px}
+  .tab{
+    background:transparent;border:1px solid transparent;color:var(--muted);
+    padding:8px 14px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:500;transition:.15s;
+  }
+  .tab:hover{color:var(--text);background:var(--panel)}
+  .tab.active{color:#fff;background:var(--accent-soft);border-color:rgba(59,130,246,.35)}
+  .topbar-spacer{flex:1}
+  .topbar-user{
+    display:flex;align-items:center;gap:10px;padding:6px 12px 6px 6px;
+    background:var(--panel);border:1px solid var(--border);border-radius:999px;
+  }
+  .avatar{
+    width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+    font-weight:700;font-size:12px;color:#fff;
+  }
+  .avatar.noc{background:linear-gradient(135deg,#06b6d4,#0e7490)}
+  .avatar.guardia{background:linear-gradient(135deg,#8b5cf6,#6d28d9)}
+  .avatar.admin{background:linear-gradient(135deg,#3b82f6,#1e40af)}
+  .topbar-user .name{font-size:13px;font-weight:500}
+  .topbar-user .role{font-size:11px;color:var(--muted)}
+  .btn-logout{
+    background:transparent;border:1px solid var(--border);color:var(--muted);
+    padding:7px 14px;border-radius:9px;cursor:pointer;font-size:12.5px;transition:.15s;
+  }
+  .btn-logout:hover{border-color:var(--danger);color:var(--danger)}
+  .btn-theme{
+    background:var(--panel);border:1px solid var(--border);color:var(--text);
+    width:34px;height:34px;border-radius:9px;cursor:pointer;font-size:16px;transition:.15s;
+    display:grid;place-items:center;line-height:1;
+  }
+  .btn-theme:hover{border-color:var(--accent);color:var(--accent)}
+
+  main{flex:1;padding:26px 22px 60px;max-width:1400px;width:100%;margin:0 auto}
+  .view{display:none}
+  .view.active{display:block;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  .page-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px;flex-wrap:wrap}
+  .page-head h2{font-size:20px;letter-spacing:.2px}
+  .page-head p{color:var(--muted);font-size:13px;margin-top:2px}
+
+  /* ---------- BUTTONS ---------- */
+  .btn{
+    background:var(--accent);color:#fff;border:none;padding:9px 16px;border-radius:9px;
+    font-size:13px;font-weight:500;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:7px;
+  }
+  .btn:hover{background:var(--accent-2)}
+  .btn.secondary{background:var(--panel);color:var(--text);border:1px solid var(--border)}
+  .btn.secondary:hover{border-color:var(--accent);color:#fff}
+  .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+  .btn.ghost:hover{color:#fff;border-color:var(--accent)}
+  .btn.success{background:var(--success)}
+  .btn.success:hover{background:#0d9668}
+  .btn.danger{background:var(--danger)}
+  .btn.danger:hover{background:#dc2626}
+  .btn.sm{padding:6px 11px;font-size:12px}
+  .btn.icon{padding:7px;width:32px;height:32px;justify-content:center}
+
+  /* ---------- STATS CARDS ---------- */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:24px}
+  .stat{
+    background:linear-gradient(160deg,var(--panel),var(--panel-2));
+    border:1px solid var(--border);border-radius:var(--radius);padding:18px;position:relative;overflow:hidden;
+  }
+  .stat::after{content:"";position:absolute;right:-20px;top:-20px;width:80px;height:80px;border-radius:50%;background:var(--accent-soft);filter:blur(10px)}
+  .stat .label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+  .stat .val{font-size:30px;font-weight:700;letter-spacing:-.5px}
+  .stat .sub{color:var(--muted-2);font-size:12px;margin-top:4px}
+  .stat.warn::after{background:var(--warning-soft)}
+  .stat.warn .val{color:var(--warning)}
+  .stat.ok::after{background:var(--success-soft)}
+  .stat.ok .val{color:var(--success)}
+  .stat.bad::after{background:var(--danger-soft)}
+  .stat.bad .val{color:var(--danger)}
+
+  /* ---------- PANELS ---------- */
+  .panel{
+    background:linear-gradient(160deg,var(--panel),var(--panel-2));
+    border:1px solid var(--border);border-radius:var(--radius);margin-bottom:20px;overflow:hidden;
+  }
+  .panel-head{
+    padding:16px 18px;border-bottom:1px solid var(--border-soft);
+    display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  }
+  .panel-head h3{font-size:15px;letter-spacing:.2px;display:flex;align-items:center;gap:9px}
+  .panel-head h3 .pill{font-size:11px;padding:2px 9px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .panel-body{padding:16px 18px}
+  .panel-body.flush{padding:0}
+
+  /* ---------- BADGES ---------- */
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;
+    font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;
+  }
+  .badge .bdot{width:6px;height:6px;border-radius:50%}
+  .badge.pendiente{background:var(--warning-soft);color:var(--warning)}
+  .badge.pendiente .bdot{background:var(--warning)}
+  .badge.aprobada{background:var(--success-soft);color:var(--success)}
+  .badge.aprobada .bdot{background:var(--success)}
+  .badge.rechazada{background:var(--danger-soft);color:var(--danger)}
+  .badge.rechazada .bdot{background:var(--danger)}
+  .badge.dept{background:var(--bg-2);color:var(--muted);border:1px solid var(--border)}
+  .badge.noc{background:rgba(34,211,238,.13);color:#22d3ee}
+  .badge.guardia{background:rgba(167,139,250,.13);color:#a78bfa}
+
+  /* ---------- TABLE ---------- */
+  .table-wrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--border-soft);white-space:nowrap}
+  th{color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;font-size:11px;background:var(--bg-2)}
+  tbody tr{transition:.12s}
+  tbody tr:hover{background:rgba(59,130,246,.05)}
+  td .who{display:flex;align-items:center;gap:9px}
+  td .who .avatar{width:26px;height:26px;font-size:10.5px}
+  td .who .meta{display:flex;flex-direction:column}
+  td .who .meta b{font-weight:500;font-size:13px}
+  td .who .meta small{color:var(--muted);font-size:11px}
+  td.actions{display:flex;gap:6px;align-items:center}
+  .empty{padding:50px 20px;text-align:center;color:var(--muted-2)}
+  .empty .ico{font-size:38px;margin-bottom:10px;opacity:.6}
+
+  /* ---------- REQUEST CARD ---------- */
+  .req-list{display:flex;flex-direction:column;gap:12px}
+  .req-card{
+    background:var(--bg-2);border:1px solid var(--border);border-radius:12px;padding:14px 16px;
+    display:flex;gap:14px;align-items:flex-start;transition:.15s;
+  }
+  .req-card:hover{border-color:#2f3e6e}
+  .req-ico{
+    width:40px;height:40px;border-radius:10px;display:grid;place-items:center;font-size:18px;flex-shrink:0;
+  }
+  .req-ico.cambio{background:rgba(59,130,246,.15);color:#60a5fa}
+  .req-ico.vacaciones{background:rgba(16,185,129,.15);color:#34d399}
+  .req-ico.permiso{background:rgba(245,158,11,.15);color:#fbbf24}
+  .req-body{flex:1;min-width:0}
+  .req-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .req-top .ttl{font-weight:600;font-size:14px}
+  .req-top .ttl small{color:var(--muted);font-weight:400;margin-left:6px}
+  .req-meta{display:flex;flex-wrap:wrap;gap:6px 14px;color:var(--muted);font-size:12.5px;margin-top:4px}
+  .req-meta span{display:inline-flex;align-items:center;gap:5px}
+  .req-reason{
+    margin-top:9px;padding:9px 12px;background:var(--panel);border-left:3px solid var(--accent);
+    border-radius:6px;color:#cdd6e6;font-size:12.5px;font-style:italic;
+  }
+  .req-actions{display:flex;gap:8px;margin-top:10px}
+  .req-resol{
+    margin-top:10px;font-size:12px;color:var(--muted);
+    padding-top:8px;border-top:1px dashed var(--border);
+  }
+
+  /* ---------- FORMS ---------- */
+  .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+  .form-grid .full{grid-column:1/-1}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .field label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;font-weight:500}
+  .field label .req{color:var(--danger)}
+  input,select,textarea{
+    background:var(--input-bg);border:1px solid var(--border);color:var(--text);
+    padding:10px 12px;border-radius:9px;font-size:13.5px;font-family:inherit;transition:.15s;
+  }
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+  textarea{resize:vertical;min-height:80px}
+  /* Icono del calendario en inputs type=date - visible en ambos modos */
+  input[type=date]::-webkit-calendar-picker-indicator{
+    cursor:pointer;
+    filter:var(--calendar-icon-invert);
+    opacity:.85;
+  }
+  input[type=date]::-webkit-calendar-picker-indicator:hover{opacity:1}
+  input[type=date]::-moz-calendar-picker-indicator{
+    cursor:pointer;
+    filter:var(--calendar-icon-invert);
+    opacity:.85;
+  }
+  .radio-row{display:flex;gap:10px;flex-wrap:wrap}
+  .radio-opt{
+    flex:1;min-width:140px;background:var(--bg-2);border:1px solid var(--border);
+    padding:14px;border-radius:10px;cursor:pointer;transition:.15s;display:flex;gap:11px;align-items:center;
+  }
+  .radio-opt:hover{border-color:#2f3e6e}
+  .radio-opt.selected{border-color:var(--accent);background:var(--accent-soft)}
+  .radio-opt .ro-ico{width:34px;height:34px;border-radius:8px;display:grid;place-items:center;font-size:16px}
+  .radio-opt .ro-ico.cambio{background:rgba(59,130,246,.15);color:#60a5fa}
+  .radio-opt .ro-ico.vacaciones{background:rgba(16,185,129,.15);color:#34d399}
+  .radio-opt .ro-ico.permiso{background:rgba(245,158,11,.15);color:#fbbf24}
+  .radio-opt .ro-txt b{display:block;font-size:13px}
+  .radio-opt .ro-txt small{color:var(--muted);font-size:11.5px}
+  .form-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border-soft)}
+
+  /* ---------- MODAL ---------- */
+  #modal{
+    position:fixed;inset:0;background:rgba(5,9,18,.7);backdrop-filter:blur(4px);
+    display:none;align-items:center;justify-content:center;z-index:100;padding:20px;
+  }
+  #modal.show{display:flex;animation:fade .2s}
+  .modal-card{
+    background:linear-gradient(160deg,var(--panel),var(--panel-2));
+    border:1px solid var(--border);border-radius:16px;width:100%;max-width:520px;
+    max-height:90vh;overflow-y:auto;box-shadow:var(--shadow);
+  }
+  .modal-head{padding:18px 20px;border-bottom:1px solid var(--border-soft);display:flex;justify-content:space-between;align-items:center}
+  .modal-head h3{font-size:16px}
+  .modal-close{background:transparent;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;padding:0 4px}
+  .modal-close:hover{color:#fff}
+  .modal-body{padding:20px}
+  .modal-foot{padding:14px 20px;border-top:1px solid var(--border-soft);display:flex;justify-content:flex-end;gap:10px}
+
+  /* ---------- TOAST ---------- */
+  #toast{position:fixed;bottom:24px;right:24px;z-index:200;display:flex;flex-direction:column;gap:10px}
+  .toast{
+    background:var(--panel-2);border:1px solid var(--border);border-left:4px solid var(--accent);
+    padding:12px 16px;border-radius:10px;font-size:13px;box-shadow:var(--shadow);
+    min-width:240px;animation:slideIn .25s ease;
+  }
+  .toast.ok{border-left-color:var(--success)}
+  .toast.err{border-left-color:var(--danger)}
+  .toast.warn{border-left-color:var(--warning)}
+  @keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:none;opacity:1}}
+
+  /* ---------- FILTERS ---------- */
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .filters select,.filters input{padding:7px 11px;font-size:12.5px;min-width:130px}
+  .filters .search{flex:1;min-width:180px}
+
+  .legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:12px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+  .seg{display:flex;background:var(--bg-2);border:1px solid var(--border);border-radius:9px;padding:3px;gap:2px}
+  .seg button{
+    background:transparent;border:none;color:var(--muted);padding:6px 12px;border-radius:7px;
+    cursor:pointer;font-size:12.5px;font-weight:500;transition:.15s;
+  }
+  .seg button.active{background:var(--accent);color:#fff}
+
+  .row-info{display:flex;gap:8px;flex-wrap:wrap;align-items:center;color:var(--muted);font-size:12.5px}
+
+  /* ---------- RESPONSIVE ---------- */
+  /* Tablet y móvil horizontal */
+  @media(max-width:880px){
+    .roles{grid-template-columns:repeat(3,1fr)}
+    .form-grid{grid-template-columns:1fr}
+    .topbar-tabs{overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+    .topbar-tabs::-webkit-scrollbar{display:none}
+    .topbar-user .name,.topbar-user .role{display:none}
+    .login-card{padding:24px 16px}
+    .login-brand h1{font-size:18px}
+    main{padding:14px 10px 50px}
+    .page-head h2{font-size:18px}
+    .stats{grid-template-columns:repeat(2,1fr);gap:8px}
+    .stat{padding:12px}
+    .stat .val{font-size:22px}
+    .cal-toolbar{gap:6px}
+    .cal-toolbar .nav-btns{flex:1;justify-content:space-between}
+    .cal-toolbar .nav-btns button{font-size:11px;padding:6px 8px}
+    .cal-mode-toggle{width:100%;margin-left:0!important}
+    .cal-mode-toggle .mode-btn{flex:1;justify-content:center;font-size:11px;padding:6px 8px}
+    .cal-legend{gap:8px;padding:8px}
+    .cal-legend .lg{font-size:10px}
+    table.cal-sched{font-size:10px}
+    table.cal-sched thead th.time-col{width:80px;min-width:80px}
+    table.cal-sched tbody th{width:80px;min-width:80px;font-size:9px}
+    table.cal-sched thead th.day-col{min-width:70px}
+    table.cal-sched thead th.day-col .day-date{font-size:11px}
+    .cal-cell-block{padding:2px 3px;font-size:9px}
+    .cal-cell-block .ccb-name{font-size:9px}
+    .cal-cell-block .ccb-sub{font-size:8px}
+    .cal-table-foot{font-size:10px;padding:6px}
+    .person-strip{gap:4px;padding:8px}
+    .person-strip .ps{font-size:10px;padding:3px 6px}
+    .legend-schedule{gap:6px}
+    .legend-schedule .lg{font-size:10px}
+    .filters{gap:6px}
+    .filters select,.filters input{font-size:11px;padding:6px 8px;min-width:100px}
+    .modal-card{max-width:95vw;max-height:95vh}
+    .modal-body{padding:14px}
+    .req-card{padding:10px 12px}
+    .req-ico{width:32px;height:32px;font-size:14px}
+    .req-top .ttl{font-size:13px}
+    .req-meta{font-size:11px;gap:4px 10px}
+    .btn.sm{padding:5px 8px;font-size:11px}
+    .seg button{padding:5px 8px;font-size:11px}
+    table{font-size:12px}
+    th,td{padding:8px 10px}
+  }
+
+  /* Móvil vertical */
+  @media(max-width:600px){
+    .roles{grid-template-columns:1fr}
+    .login-card{padding:20px 14px}
+    .login-brand{flex-direction:column;align-items:flex-start;gap:8px}
+    .role-card{padding:16px 12px}
+    .role-card h3{font-size:14px}
+    .role-card p{font-size:11px}
+    .stats{grid-template-columns:repeat(2,1fr)}
+    .stat .val{font-size:20px}
+    .stat .label{font-size:10px}
+    .page-head{flex-direction:column;align-items:flex-start;gap:8px}
+    .page-head h2{font-size:17px}
+    .page-head p{font-size:12px}
+    .filters{flex-direction:column;align-items:stretch}
+    .filters select,.filters input,.filters .search{width:100%;min-width:0}
+    .filters .seg{width:100%}
+    .filters .seg button{flex:1}
+    .cal-toolbar{flex-direction:column;align-items:stretch}
+    .cal-toolbar .week-info{width:100%}
+    .cal-toolbar .nav-btns{width:100%}
+    .cal-mode-toggle{width:100%}
+    .cal-legend{flex-wrap:wrap}
+    table.cal-sched{font-size:9px}
+    table.cal-sched thead th.time-col{width:60px;min-width:60px}
+    table.cal-sched tbody th{width:60px;min-width:60px;font-size:8px}
+    table.cal-sched thead th.day-col{min-width:55px}
+    table.cal-sched thead th.day-col .day-name{font-size:8px}
+    table.cal-sched thead th.day-col .day-date{font-size:10px}
+    .cal-cell-block{padding:1px 2px;font-size:8px}
+    .cal-cell-block .ccb-name{font-size:8px}
+    .cal-cell-block .ccb-sub{font-size:7px}
+    .modal-card{max-width:98vw;border-radius:12px}
+    .modal-body{padding:12px}
+    .modal-foot{padding:10px 12px}
+    .form-grid{gap:10px}
+    .field label{font-size:11px}
+    input,select,textarea{padding:10px;font-size:14px}
+    .radio-row{flex-direction:column}
+    .radio-opt{min-width:0}
+    .person-strip{flex-direction:column;gap:4px}
+    .legend-schedule{flex-direction:column;gap:4px}
+    .btn-logout{padding:6px 10px;font-size:11px}
+    .btn-theme{width:30px;height:30px;font-size:14px}
+    header.topbar{padding:8px 10px;gap:8px}
+    .topbar-brand span{display:none}
+    main{padding:12px 8px 40px}
+    .cal-week-summary{flex-direction:column;gap:6px}
+    .cal-week-summary .ws{font-size:11px}
+    .req-actions{flex-wrap:wrap}
+    th,td{padding:6px 8px;font-size:11px}
+  }
+
+  /* Móvil horizontal - optimizar altura */
+  @media(max-width:880px) and (orientation:landscape){
+    .login-card{max-width:700px;padding:16px 20px}
+    .login-brand{margin-bottom:4px}
+    .login-sub{margin:6px 0 16px}
+    .roles{grid-template-columns:repeat(3,1fr);gap:10px}
+    .role-card{padding:14px 10px}
+    .role-card h3{font-size:13px}
+    main{padding:10px 12px 30px}
+    .stats{grid-template-columns:repeat(6,1fr);gap:6px}
+    .stat{padding:8px}
+    .stat .val{font-size:18px}
+    .stat .label{font-size:9px}
+    .page-head{margin-bottom:10px}
+    .page-head h2{font-size:16px}
+    .modal-card{max-width:90vw;max-height:90vh}
+    table.cal-sched{font-size:10px}
+    table.cal-sched tbody td{height:20px}
+  }
+
+  /* PWA: safe areas para notch */
+  @supports(padding:max(0px)){
+    header.topbar{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right));padding-top:max(12px,env(safe-area-inset-top))}
+    main{padding-left:max(10px,env(safe-area-inset-left));padding-right:max(10px,env(safe-area-inset-right))}
+  }
+
+  /* PWA install button */
+  #pwaInstall{display:none;position:fixed;bottom:16px;left:50%;transform:translateX(-50%);z-index:300;
+    background:var(--accent);color:#fff;border:none;padding:10px 24px;border-radius:30px;
+    font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,.5);
+    transition:.2s;white-space:nowrap;
+  }
+  #pwaInstall:hover{background:var(--accent-2);transform:translateX(-50%) translateY(-2px)}
+  #pwaInstall.show{display:block;animation:slideUp .3s ease}
+  @keyframes slideUp{from{transform:translateX(-50%) translateY(20px);opacity:0}to{transform:translateX(-50%) translateY(0);opacity:1}}
+
+  /* ---------- SCHEDULE ---------- */
+  .legend-schedule{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+  .legend-schedule .lg{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+  .legend-schedule .lg i{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .schedule-grid{overflow-x:auto;border:1px solid var(--border-soft);border-radius:10px}
+  table.sched{border-collapse:collapse;width:100%;font-size:12px}
+  table.sched th,table.sched td{border:1px solid var(--border-soft);padding:0;vertical-align:top}
+  table.sched thead th{
+    background:var(--bg-2);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px;
+    padding:9px 8px;text-align:center;position:sticky;top:0;
+  }
+  table.sched thead th.time-col{width:130px;min-width:130px}
+  table.sched tbody th{
+    background:var(--bg-2);color:var(--muted);font-size:11px;text-align:center;padding:6px 4px;font-weight:500;width:130px;min-width:130px;white-space:nowrap;
+  }
+  table.sched tbody td{height:18px;min-width:120px}
+  .shift-block{
+    padding:4px 7px;font-size:11.5px;font-weight:500;color:#0b1220;border-radius:3px;
+    margin:1px;line-height:1.25;word-break:break-word;white-space:normal;
+  }
+  .sched-empty{color:var(--muted-2);text-align:center;font-size:11px;padding:3px}
+  .person-strip{
+    display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:12px;background:var(--bg-2);
+    border-radius:10px;border:1px solid var(--border-soft);
+  }
+  .person-strip .ps{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;padding:5px 10px;background:var(--panel);border-radius:7px;border:1px solid var(--border-soft)}
+  .person-strip .ps i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .person-strip .ps small{color:var(--muted-2)}
+
+  /* ---------- CALENDARIO SEMANAL ---------- */
+  .cal-toolbar{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;
+  }
+  .cal-toolbar .week-info{
+    background:var(--bg-2);border:1px solid var(--border);border-radius:10px;
+    padding:8px 14px;font-size:13px;
+  }
+  .cal-toolbar .week-info b{color:var(--text)}
+  .cal-toolbar .week-info small{color:var(--muted);display:block;font-size:11px;margin-top:1px}
+  .cal-toolbar .nav-btns{display:flex;gap:6px}
+  .cal-toolbar .today-badge{
+    background:var(--accent-soft);color:var(--accent);border:1px solid rgba(59,130,246,.35);
+    padding:5px 11px;border-radius:7px;font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;
+  }
+  .cal-grid{
+    display:grid;grid-template-columns:repeat(7,1fr);gap:8px;
+  }
+  .cal-day{
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--border);border-radius:12px;overflow:hidden;
+    min-height:280px;display:flex;flex-direction:column;
+  }
+  .cal-day.today{border-color:var(--accent);box-shadow:0 0 0 1px rgba(59,130,246,.25),0 8px 24px rgba(37,99,235,.15)}
+  .cal-day.weekend{background:var(--bg-2);border-color:var(--border-soft)}
+  .cal-day-head{
+    padding:8px 10px;border-bottom:1px solid var(--border-soft);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .cal-day-head .dn{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+  .cal-day-head .dt{font-size:14px;font-weight:600}
+  .cal-day.today .cal-day-head .dt{color:var(--accent)}
+  .cal-day-body{padding:6px;display:flex;flex-direction:column;gap:4px;flex:1;overflow-y:auto}
+  .cal-block{
+    border-radius:6px;padding:6px 8px;font-size:11.5px;line-height:1.3;
+    border-left:3px solid;background:rgba(255,255,255,.04);
+  }
+  .cal-block .cb-name{font-weight:600;color:#fff;font-size:12px;display:block}
+  .cal-block .cb-time{color:rgba(255,255,255,.7);font-size:10.5px}
+  .cal-block.vacation{
+    background:repeating-linear-gradient(45deg,rgba(16,185,129,.18),rgba(16,185,129,.18) 6px,rgba(16,185,129,.28) 6px,rgba(16,185,129,.28) 12px);
+    border-left-color:var(--success);color:#a7f3d0;
+  }
+  .cal-block.vacation .cb-name{color:#6ee7b7}
+  .cal-block.vacation .cb-time{color:#6ee7b7}
+  .cal-block.permiso{
+    background:rgba(245,158,11,.15);border-left-color:var(--warning);color:#fde68a;
+  }
+  .cal-block.cambio{
+    background:rgba(168,85,247,.15);border-left-color:#a78bfa;color:#ddd6fe;
+  }
+  .cal-empty{padding:6px;text-align:center;color:var(--muted-2);font-size:10.5px;font-style:italic}
+  .cal-legend{
+    display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;
+    background:var(--bg-2);border-radius:10px;border:1px solid var(--border-soft);
+  }
+  .cal-legend .lg{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+  .cal-legend .lg i{width:14px;height:14px;border-radius:3px;display:inline-block}
+  .cal-legend .lg i.vac{background:repeating-linear-gradient(45deg,rgba(16,185,129,.3),rgba(16,185,129,.3) 4px,rgba(16,185,129,.55) 4px,rgba(16,185,129,.55) 8px)}
+  .cal-legend .lg i.perm{background:rgba(245,158,11,.35);border:1px solid var(--warning)}
+  .cal-legend .lg i.camb{background:rgba(168,85,247,.25);border:1px solid #a78bfa}
+  .cal-mode-toggle{display:flex;gap:8px;flex-wrap:wrap}
+  .cal-mode-toggle .mode-btn{
+    background:var(--bg-2);border:1px solid var(--border);color:var(--muted);
+    padding:8px 14px;border-radius:9px;cursor:pointer;font-size:12.5px;font-weight:500;transition:.15s;
+    display:inline-flex;align-items:center;gap:7px;
+  }
+  .cal-mode-toggle .mode-btn.active{background:var(--accent-soft);color:#fff;border-color:rgba(59,130,246,.45)}
+  .cal-mode-toggle .mode-btn:hover{border-color:var(--accent);color:#fff}
+  .cal-alert{
+    padding:10px 14px;background:var(--accent-soft);border-left:3px solid var(--accent);
+    border-radius:7px;font-size:12.5px;color:var(--text);margin-bottom:14px;
+  }
+  .cal-alert b{color:var(--text)}
+
+  /* ---------- CALENDARIO EN FORMATO TABLA ---------- */
+  .cal-table-wrap{
+    overflow-x:auto;border:1px solid var(--border-soft);border-radius:10px;
+    background:linear-gradient(160deg,var(--panel),var(--panel-2));
+  }
+  table.cal-sched{border-collapse:collapse;width:100%;font-size:12px}
+  table.cal-sched th,table.cal-sched td{border:1px solid var(--border-soft);padding:0;vertical-align:top}
+  table.cal-sched thead th{
+    background:var(--bg-2);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px;
+    padding:9px 8px;text-align:center;position:sticky;top:0;z-index:2;
+  }
+  table.cal-sched thead th.time-col{width:130px;min-width:130px}
+  table.cal-sched thead th.day-col{min-width:140px}
+  table.cal-sched thead th.day-col .day-name{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px;display:block;margin-bottom:2px}
+  table.cal-sched thead th.day-col .day-date{color:var(--text);font-size:14px;font-weight:600;letter-spacing:.3px}
+  table.cal-sched thead th.day-col.today-col{background:var(--accent-soft);box-shadow:inset 0 -2px 0 var(--accent)}
+  table.cal-sched thead th.day-col.today-col .day-name{color:var(--accent)}
+  table.cal-sched thead th.day-col.today-col .day-date{color:var(--accent)}
+  table.cal-sched thead th.day-col.weekend-col{background:var(--bg-2)}
+  table.cal-sched tbody th{
+    background:var(--bg-2);color:var(--muted);font-size:11px;text-align:center;padding:6px 4px;font-weight:500;width:130px;min-width:130px;white-space:nowrap;
+  }
+  table.cal-sched tbody td{height:24px;min-width:140px;width:14.28%}
+  table.cal-sched tbody td.weekend-cell{background:var(--bg-2)}
+  .cal-cell-block{
+    padding:3px 6px;font-size:11px;font-weight:500;color:#0b1220;border-radius:3px;
+    margin:1px;line-height:1.25;word-break:break-word;white-space:normal;height:100%;display:flex;flex-direction:column;justify-content:center;
+  }
+  .cal-cell-block .ccb-name{font-weight:600;font-size:11.5px}
+  .cal-cell-block .ccb-sub{opacity:.8;font-size:10px}
+  .cal-cell-block.vacation-cell{
+    background:repeating-linear-gradient(45deg,rgba(16,185,129,.35),rgba(16,185,129,.35) 5px,rgba(16,185,129,.6) 5px,rgba(16,185,129,.6) 10px);
+    color:#ecfdf5;border-left:3px solid var(--success);
+  }
+  .cal-cell-block.vacation-cell .ccb-name{color:#d1fae5}
+  .cal-cell-block.vacation-cell .ccb-sub{color:#a7f3d0}
+  .cal-cell-block.permiso-cell{
+    background:rgba(245,158,11,.25);color:#fef3c7;border-left:3px solid var(--warning);
+  }
+  .cal-cell-block.permiso-cell .ccb-name{color:#fde68a}
+  .cal-cell-block.cambio-cell{
+    background:rgba(168,85,247,.25);color:#ede9fe;border-left:3px solid #a78bfa;
+  }
+  .cal-cell-block.cambio-cell .ccb-name{color:#ddd6fe}
+  .cal-cell-empty{color:var(--muted-2);text-align:center;font-size:11px;padding:3px}
+  .cal-table-foot{
+    padding:10px 14px;color:var(--muted-2);font-size:12px;border-top:1px solid var(--border-soft);
+  }
+  .cal-week-summary{
+    display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;padding:12px 14px;
+    background:var(--bg-2);border-radius:10px;border:1px solid var(--border-soft);
+  }
+  .cal-week-summary .ws{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted)}
+  .cal-week-summary .ws b{color:var(--text)}
+</style>
+</head>
+<body>
+
+<!-- ===================== LOGIN ===================== -->
+<div id="login">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="brand-logo">N</div>
+      <div>
+        <h1>NOC &amp; Guardias</h1>
+        <small>Gestión de solicitudes</small>
+      </div>
+    </div>
+    <p class="login-sub">Selecciona el perfil con el que deseas ingresar a la plataforma. Esta es una versión de pruebas.</p>
+
+    <div class="roles">
+      <div class="role-card" onclick="selectRole('admin')">
+        <div class="sel">↗</div>
+        <div class="role-ico">🛡️</div>
+        <h3>Administrador</h3>
+        <p>Crea perfiles, asigna departamentos, aprueba o rechaza solicitudes y consulta el historial.</p>
+      </div>
+      <div class="role-card" onclick="selectRole('noc')">
+        <div class="sel">↗</div>
+        <div class="role-ico" style="background:rgba(34,211,238,.15);color:#22d3ee">📡</div>
+        <h3>NOC</h3>
+        <p>Genera solicitudes de cambio de turno, vacaciones o permisos y da seguimiento.</p>
+      </div>
+      <div class="role-card" onclick="selectRole('guardia')">
+        <div class="sel">↗</div>
+        <div class="role-ico" style="background:rgba(167,139,250,.15);color:#a78bfa">👮</div>
+        <h3>Guardia</h3>
+        <p>Solicita cambios de turno, vacaciones y permisos. Reemplaza el uso informal por WhatsApp.</p>
+      </div>
+    </div>
+
+    <div class="login-form" id="loginForm" style="display:none">
+      <div class="login-form-head">
+        <span class="login-form-title" id="loginFormTitle">Iniciar sesión</span>
+        <button type="button" class="login-form-back" onclick="backToRoles()">← Volver</button>
+      </div>
+      <form id="loginFormEl" onsubmit="doLogin(event)">
+        <div class="field">
+          <label>Usuario</label>
+          <select id="loginUser" required></select>
+        </div>
+        <div class="field">
+          <label>Contraseña</label>
+          <div class="pwd-wrap">
+            <input type="password" id="loginPassword" required placeholder="Ingresa tu contraseña">
+            <button type="button" class="pwd-toggle" onclick="toggleLoginPwd(this)" title="Mostrar/ocultar">👁</button>
+          </div>
+        </div>
+        <div id="loginError" class="login-error" style="display:none"></div>
+        <button type="submit" class="btn" style="width:100%;justify-content:center;margin-top:8px">Entrar</button>
+      </form>
+      <p class="login-hint-pwd" id="loginHintPwd" style="display:none"></p>
+    </div>
+
+    <p class="login-hint">NOC &amp; Guardias · Sistema de gestión de solicitudes</p>
+  </div>
+</div>
+
+<!-- ===================== APP ===================== -->
+<div id="app">
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="logo">N</div>
+      <span>NOC &amp; Guardias</span>
+    </div>
+    <nav class="topbar-tabs" id="navTabs"></nav>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-user">
+      <div class="avatar" id="topAvatar">--</div>
+      <div>
+        <div class="name" id="topName">—</div>
+        <div class="role" id="topRole">—</div>
+      </div>
+    </div>
+    <button class="btn-theme" id="themeToggle" onclick="toggleTheme()" title="Cambiar tema claro/oscuro">🌙</button>
+    <button class="btn-logout" onclick="logout()">Salir</button>
+  </header>
+
+  <main>
+    <!-- ============ ADMIN: RESUMEN ============ -->
+    <section class="view" id="view-resumen">
+      <div class="page-head">
+        <div>
+          <h2>Resumen operativo</h2>
+          <p>Estado general de solicitudes de NOC y Guardias.</p>
+        </div>
+      </div>
+
+      <div class="stats" id="statsGrid"></div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Últimas solicitudes <span class="pill" id="lastCount">0</span></h3>
+          <button class="btn ghost sm" onclick="go('historial')">Ver historial completo</button>
+        </div>
+        <div class="panel-body flush">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Solicitante</th><th>Tipo</th><th>Detalle</th><th>Creación</th><th>Estado</th></tr>
+              </thead>
+              <tbody id="lastRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ADMIN: PENDIENTES ============ -->
+    <section class="view" id="view-pendientes">
+      <div class="page-head">
+        <div>
+          <h2>Solicitudes pendientes</h2>
+          <p>Revisa y resuelve las solicitudes que requieren tu aprobación.</p>
+        </div>
+        <div class="filters">
+          <select id="pendDeptFilter" onchange="renderPendientes()">
+            <option value="">Todos los deptos.</option>
+            <option value="NOC">NOC</option>
+            <option value="Guardias">Guardias</option>
+          </select>
+          <select id="pendTypeFilter" onchange="renderPendientes()">
+            <option value="">Todos los tipos</option>
+            <option value="cambio_turno">Cambio de turno</option>
+            <option value="vacaciones">Vacaciones</option>
+            <option value="permiso">Permiso</option>
+          </select>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-body" id="pendientesBody"></div>
+      </div>
+    </section>
+
+    <!-- ============ ADMIN & USER: HORARIO / CALENDARIO ============ -->
+    <section class="view" id="view-horario">
+      <div class="page-head">
+        <div>
+          <h2>Horario semanal</h2>
+          <p>Navega entre semanas pasadas, actual y futuras. Cambia entre horario oficial y con solicitudes aprobadas.</p>
+        </div>
+        <div class="filters" id="horarioFilters"></div>
+      </div>
+
+      <div class="cal-toolbar">
+        <div class="week-info" id="calWeekInfo"></div>
+        <div class="nav-btns">
+          <button class="btn ghost sm" onclick="calNav(-1)">← Semana anterior</button>
+          <button class="btn secondary sm" onclick="calNav(0)">Hoy</button>
+          <button class="btn ghost sm" onclick="calNav(1)">Semana siguiente →</button>
+        </div>
+        <div id="calTodayBadge"></div>
+        <div class="cal-mode-toggle" id="calModeToggle" style="margin-left:auto"></div>
+      </div>
+
+      <div class="cal-legend" id="calLegend"></div>
+
+      <div id="calAlertBox"></div>
+
+      <div id="horarioPanels"></div>
+    </section>
+
+    <!-- ============ ADMIN: HISTORIAL ============ -->
+    <section class="view" id="view-historial">
+      <div class="page-head">
+        <div>
+          <h2>Historial completo</h2>
+          <p>Todas las solicitudes registradas en la plataforma.</p>
+        </div>
+      </div>
+
+      <!-- Fila 1: filtros principales + búsqueda -->
+      <div class="filters" style="margin-bottom:10px">
+        <input type="text" class="search" id="histSearch" placeholder="Buscar por nombre, motivo..." oninput="renderHistorial()">
+        <select id="histDept" onchange="renderHistorial()">
+          <option value="">Todos los deptos.</option>
+          <option value="NOC">NOC</option>
+          <option value="Guardias">Guardias</option>
+        </select>
+        <select id="histStatus" onchange="renderHistorial()">
+          <option value="">Todos los estados</option>
+          <option value="pendiente">Pendiente</option>
+          <option value="aprobada">Aprobada</option>
+          <option value="rechazada">Rechazada</option>
+        </select>
+        <select id="histType" onchange="renderHistorial()">
+          <option value="">Todos los tipos</option>
+          <option value="cambio_turno">Cambio de turno</option>
+          <option value="vacaciones">Vacaciones</option>
+          <option value="permiso">Permiso</option>
+        </select>
+        <button class="btn ghost sm" onclick="clearHistFilters()">Limpiar filtros</button>
+      </div>
+
+      <!-- Fila 2: filtro por rango de fechas + presets rápidos -->
+      <div class="filters" style="margin-bottom:18px">
+        <span style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;font-weight:600">📅 Rango:</span>
+        <input type="date" id="histFechaDesde" onchange="renderHistorial()" title="Desde">
+        <span style="color:var(--muted-2)">→</span>
+        <input type="date" id="histFechaHasta" onchange="renderHistorial()" title="Hasta">
+        <div class="seg">
+          <button class="active" data-preset="all" onclick="setHistPreset('all')">Todas</button>
+          <button data-preset="today" onclick="setHistPreset('today')">Hoy</button>
+          <button data-preset="week" onclick="setHistPreset('week')">Esta semana</button>
+          <button data-preset="month" onclick="setHistPreset('month')">Este mes</button>
+          <button data-preset="last30" onclick="setHistPreset('last30')">Últimos 30 días</button>
+        </div>
+        <span id="histDateInfo" style="color:var(--muted-2);font-size:12px"></span>
+      </div>
+      <div class="panel">
+        <div class="panel-body flush">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Solicitante</th><th>Depto</th><th>Tipo</th><th>Detalle</th>
+                  <th>Creación</th><th>Resolución</th><th>Estado</th>
+                </tr>
+              </thead>
+              <tbody id="histRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ ADMIN: USUARIOS ============ -->
+    <section class="view" id="view-usuarios">
+      <div class="page-head">
+        <div>
+          <h2>Gestión de usuarios</h2>
+          <p>Crea perfiles, asígnales departamento y activa o desactiva el acceso.</p>
+        </div>
+        <button class="btn" onclick="openUserModal()">+ Nuevo usuario</button>
+      </div>
+      <div class="stats" id="userStats"></div>
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Usuarios registrados</h3>
+          <div class="filters">
+            <select id="userDeptFilter" onchange="renderUsuarios()">
+              <option value="">Todos los deptos.</option>
+              <option value="NOC">NOC</option>
+              <option value="Guardias">Guardias</option>
+              <option value="Admin">Administrador</option>
+            </select>
+            <button class="btn ghost sm" id="pwdToggleBtn" onclick="togglePwdVisibility()">👁 Mostrar contraseñas</button>
+          </div>
+        </div>
+        <div class="panel-body flush">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Usuario</th><th>Departamento</th><th>Rol</th>
+                  <th>Estado</th><th>Contraseña</th><th>Solicitudes</th><th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="userRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ USER: NUEVA SOLICITUD ============ -->
+    <section class="view" id="view-nueva">
+      <div class="page-head">
+        <div>
+          <h2>Nueva solicitud</h2>
+          <p>Registra formalmente tu solicitud en lugar de mandarla por WhatsApp.</p>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>1 · Tipo de solicitud</h3></div>
+        <div class="panel-body">
+          <div class="radio-row" id="typeRow">
+            <div class="radio-opt selected" data-type="cambio_turno" onclick="selectType('cambio_turno')">
+              <div class="ro-ico cambio">🔁</div>
+              <div class="ro-txt"><b>Cambio de turno</b><small>Intercambio de horario con un compañero</small></div>
+            </div>
+            <div class="radio-opt" data-type="vacaciones" onclick="selectType('vacaciones')">
+              <div class="ro-ico vacaciones">🌴</div>
+              <div class="ro-txt"><b>Vacaciones</b><small>Días libres por descanso programado</small></div>
+            </div>
+            <div class="radio-opt" data-type="permiso" onclick="selectType('permiso')">
+              <div class="ro-ico permiso">📝</div>
+              <div class="ro-txt"><b>Permiso</b><small>Ausencia por horas o un día (cita, trámite)</small></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>2 · Detalle de la solicitud</h3></div>
+        <div class="panel-body">
+          <form id="reqForm" onsubmit="submitRequest(event)">
+            <!-- Cambio de turno -->
+            <div id="fields-cambio_turno" class="form-grid">
+              <div class="field">
+                <label>Fecha origen <span class="req">*</span></label>
+                <input type="date" name="fechaOrigen" required>
+              </div>
+              <div class="field">
+                <label>Turno origen <span class="req">*</span></label>
+                <select name="turnoOrigen" id="turnoOrigenSel" required>
+                  <option value="">Selecciona…</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Fecha destino <span class="req">*</span></label>
+                <input type="date" name="fechaDestino" required>
+              </div>
+              <div class="field">
+                <label>Turno destino <span class="req">*</span></label>
+                <select name="turnoDestino" id="turnoDestinoSel" required>
+                  <option value="">Selecciona…</option>
+                </select>
+              </div>
+              <div class="field full">
+                <label>Intercambio con (contraparte) <span class="req">*</span></label>
+                <select name="contraparte" required id="contraparteSel">
+                  <option value="">Selecciona compañero…</option>
+                </select>
+              </div>
+              <div class="field full">
+                <label>Motivo <span class="req">*</span></label>
+                <textarea name="motivo" placeholder="Ej. Cita médica, compromiso personal, etc." required></textarea>
+              </div>
+            </div>
+
+            <!-- Vacaciones -->
+            <div id="fields-vacaciones" class="form-grid" style="display:none">
+              <div class="field">
+                <label>Fecha de inicio <span class="req">*</span></label>
+                <input type="date" name="fechaInicio" required>
+              </div>
+              <div class="field">
+                <label>Fecha de regreso <span class="req">*</span></label>
+                <input type="date" name="fechaFin" required>
+              </div>
+              <div class="field full">
+                <label>Días solicitados</label>
+                <input type="text" id="diasVac" readonly placeholder="Se calcula automáticamente">
+              </div>
+              <div class="field full">
+                <label>Motivo / observaciones</label>
+                <textarea name="motivoVac" placeholder="Ej. Vacaciones programadas…"></textarea>
+              </div>
+            </div>
+
+            <!-- Permiso -->
+            <div id="fields-permiso" class="form-grid" style="display:none">
+              <div class="field">
+                <label>Fecha del permiso <span class="req">*</span></label>
+                <input type="date" name="fechaPermiso" required>
+              </div>
+              <div class="field">
+                <label>Duración <span class="req">*</span></label>
+                <select name="duracionPermiso" required>
+                  <option value="">Selecciona…</option>
+                  <option>2 horas</option>
+                  <option>4 horas</option>
+                  <option>Medio día (mañana)</option>
+                  <option>Medio día (tarde)</option>
+                  <option>Día completo</option>
+                </select>
+              </div>
+              <div class="field full">
+                <label>Motivo <span class="req">*</span></label>
+                <textarea name="motivoPerm" placeholder="Ej. Cita médica, trámite bancario, etc." required></textarea>
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="button" class="btn ghost" onclick="document.getElementById('reqForm').reset();selectType(currentType)">Limpiar</button>
+              <button type="submit" class="btn success">Enviar solicitud</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ USER: MIS SOLICITUDES ============ -->
+    <section class="view" id="view-mias">
+      <div class="page-head">
+        <div>
+          <h2>Mis solicitudes</h2>
+          <p>Da seguimiento al estado de las solicitudes que has enviado.</p>
+        </div>
+        <button class="btn" onclick="go('nueva')">+ Nueva solicitud</button>
+      </div>
+      <div class="stats" id="myStats"></div>
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Listado</h3>
+          <div class="seg">
+            <button class="active" data-f="todas" onclick="setMyFilter('todas')">Todas</button>
+            <button data-f="pendiente" onclick="setMyFilter('pendiente')">Pendientes</button>
+            <button data-f="aprobada" onclick="setMyFilter('aprobada')">Aprobadas</button>
+            <button data-f="rechazada" onclick="setMyFilter('rechazada')">Rechazadas</button>
+          </div>
+        </div>
+        <div class="panel-body" id="myReqBody"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ===================== MODAL ===================== -->
+<div id="modal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3 id="modalTitle">Modal</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<button id="pwaInstall">📱 Instalar app</button>
+
+<!-- ===================== FIREBASE SDK ===================== -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<script>
+/* ===================== FIREBASE CONFIG ===================== */
+// REEMPLAZA estos valores con los de tu proyecto de Firebase
+const firebaseConfig = {
+  apiKey: "TU_API_KEY",
+  authDomain: "TU_PROYECTO.firebaseapp.com",
+  projectId: "TU_PROYECTO",
+  storageBucket: "TU_PROYECTO.appspot.com",
+  messagingSenderId: "TU_SENDER_ID",
+  appId: "TU_APP_ID"
+};
+
+let fbdb = null;
+let useFirebase = false;
+try {
+  firebase.initializeApp(firebaseConfig);
+  fbdb = firebase.firestore();
+  useFirebase = true;
+} catch(e) {
+  console.warn('Firebase no configurado, usando localStorage como respaldo');
+}
+
+/* ===================== DATA ===================== */
+const STORAGE_KEY = 'noc_guardias_app_prod';
+
+function seed(){
+  return {
+    users:[
+      // Administrador
+      {id:'u1',name:'Carlos Méndez',dept:'Admin',role:'admin',active:true,password:'admin123'},
+      // NOC (4 técnicos)
+      {id:'u2',name:'Angello Zamora',dept:'NOC',role:'user',active:true,password:'noc123'},
+      {id:'u3',name:'Danny Araya',dept:'NOC',role:'user',active:true,password:'noc123'},
+      {id:'u4',name:'Nathaly Arias',dept:'NOC',role:'user',active:true,password:'noc123'},
+      {id:'u5',name:'Luis Araya',dept:'NOC',role:'user',active:true,password:'noc123'},
+      // Guardias (4 técnicos)
+      {id:'u6',name:'Yoan de Jesús Fonseca Chaves',dept:'Guardias',role:'user',active:true,password:'guardia123'},
+      {id:'u7',name:'Dereck Ramses Vargas Gomez',dept:'Guardias',role:'user',active:true,password:'guardia123'},
+      {id:'u8',name:'Fabian Andrés Bustos Gonzalez',dept:'Guardias',role:'user',active:true,password:'guardia123'},
+      {id:'u9',name:'Diego Jara',dept:'Guardias',role:'user',active:true,password:'guardia123'},
+    ],
+    requests:[]
+  };
+}
+
+// Carga la BD desde Firestore o localStorage
+let DB = null;
+async function loadDB(){
+  if(useFirebase){
+    try{
+      const doc = await fbdb.collection('noc_guardias').doc('data').get();
+      if(doc.exists){
+        DB = doc.data();
+      } else {
+        DB = seed();
+        await fbdb.collection('noc_guardias').doc('data').set(DB);
+      }
+    }catch(e){
+      console.error('Error leyendo Firestore, usando localStorage:', e);
+      const raw = localStorage.getItem(STORAGE_KEY);
+      DB = raw ? JSON.parse(raw) : seed();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+    }
+  } else {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    DB = raw ? JSON.parse(raw) : seed();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+  }
+}
+
+// Guarda la BD en Firestore o localStorage
+async function saveDB(){
+  if(useFirebase){
+    try{
+      await fbdb.collection('noc_guardias').doc('data').set(DB);
+    }catch(e){
+      console.error('Error guardando en Firestore, usando localStorage:', e);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+    }
+  } else {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+  }
+}
+
+// Función de guardado síncrona (usa localStorage como caché inmediato)
+function save(){
+  // Guarda en localStorage inmediatamente (caché)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(DB));
+  // Guarda en Firestore de forma asíncrona
+  if(useFirebase){
+    fbdb.collection('noc_guardias').doc('data').set(DB).catch(e=>{
+      console.error('Error sincronizando con Firestore:', e);
+    });
+  }
+}
+
+/* ===================== HORARIO OFICIAL ===================== */
+/* Turnos reales por departamento (extraídos de las fotos oficiales) */
+const SHIFTS = {
+  NOC:[
+    '22:00 - 05:00',
+    '22:00 - 06:00',
+    '00:00 - 05:00',
+    '00:00 - 06:00',
+    '05:00 - 13:00',
+    '06:00 - 14:00',
+    '13:00 - 22:00',
+    '14:00 - 22:00',
+    '22:00 - 24:00',
+  ],
+  Guardias:[
+    '23:00 - 07:00',
+    '00:00 - 07:00',
+    '07:00 - 16:00',
+    '16:00 - 23:00',
+    '23:00 - 24:00',
+  ]
+};
+
+/* Horario semanal oficial por técnico (tal cual aparece en las fotos).
+   Estructura: { userId: { 'Lunes': ['00:00-06:00'], 'Martes': [...], ... } } */
+const SCHEDULE = {
+  // ===== NOC =====
+  'u2': { // Angello Zamora
+    Lunes:['00:00-05:00'], Martes:[], Miércoles:[], Jueves:[],
+    Viernes:['06:00-14:00'], Sábado:['14:00-22:00'], Domingo:['22:00-24:00']
+  },
+  'u3': { // Danny Araya
+    Lunes:['22:00-24:00'],
+    Martes:['00:00-05:00','22:00-24:00'],
+    Miércoles:['00:00-05:00','22:00-24:00'],
+    Jueves:['00:00-05:00','22:00-24:00'],
+    Viernes:['00:00-06:00','22:00-24:00'],
+    Sábado:['00:00-06:00','22:00-24:00'],
+    Domingo:['00:00-06:00']
+  },
+  'u4': { // Nathaly Arias
+    Lunes:['05:00-13:00'], Martes:['05:00-13:00'],
+    Miércoles:['05:00-13:00'], Jueves:['05:00-13:00'],
+    Viernes:[], Sábado:['06:00-14:00'], Domingo:['06:00-14:00']
+  },
+  'u5': { // Luis Araya
+    Lunes:['13:00-22:00'],
+    Martes:['13:00-22:00'],
+    Miércoles:['13:00-22:00'],
+    Jueves:['13:00-22:00'],
+    Viernes:['14:00-22:00'], Sábado:[], Domingo:['14:00-22:00']
+  },
+  // ===== Guardias =====
+  'u6': { // Yoan de Jesús Fonseca Chaves
+    Lunes:['00:00-07:00'], Martes:[], Miércoles:[],
+    Jueves:['00:00-07:00','23:00-24:00'],
+    Viernes:['00:00-07:00','23:00-24:00'],
+    Sábado:['00:00-07:00','23:00-24:00'],
+    Domingo:['00:00-07:00','23:00-24:00']
+  },
+  'u7': { // Dereck Ramses Vargas Gomez
+    Lunes:['23:00-24:00'],
+    Martes:['00:00-07:00','23:00-24:00'],
+    Miércoles:['00:00-07:00','23:00-24:00'],
+    Jueves:['16:00-23:00'],
+    Viernes:['16:00-23:00'],
+    Sábado:['16:00-23:00'],
+    Domingo:[]
+  },
+  'u8': { // Fabian Andrés Bustos Gonzalez
+    Lunes:['16:00-23:00'], Martes:['16:00-23:00'], Miércoles:['16:00-23:00'],
+    Jueves:[], Viernes:[],
+    Sábado:['07:00-16:00'], Domingo:['16:00-23:00']
+  },
+  'u9': { // Diego Jara — turno Día (07:00-16:00) solo el domingo
+    Lunes:[], Martes:[], Miércoles:[],
+    Jueves:[], Viernes:[],
+    Sábado:[], Domingo:['07:00-16:00']
+  }
+};
+
+const DAYS = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+const DEPT_COLORS = {
+  'u2':'#facc15', 'u3':'#3b82f6', 'u4':'#10b981', 'u5':'#ef4444',
+  'u6':'#22d3ee', 'u7':'#a78bfa', 'u8':'#f59e0b', 'u9':'#14b8a6'
+};
+
+// DB se carga asíncronamente en DOMContentLoaded con loadDB()
+// save() está definido arriba en la sección de Firebase
+
+function uid(prefix){ return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2,5); }
+function nowStr(){ const d=new Date(); const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+
+/* ===================== STATE ===================== */
+let session = null;          // {role, userId}
+let currentType = 'cambio_turno';
+let myFilter = 'todas';
+
+const TYPE_LABEL = {cambio_turno:'Cambio de turno', vacaciones:'Vacaciones', permiso:'Permiso'};
+const TYPE_ICO = {cambio_turno:'🔁', vacaciones:'🌴', permiso:'📝'};
+
+/* ===================== LOGIN ===================== */
+let pendingRole = null; // rol seleccionado en la pantalla de login
+
+function selectRole(role){
+  pendingRole = role;
+  // Ocultar las tarjetas de rol y mostrar el formulario de login
+  document.querySelector('.roles').style.display = 'none';
+  const form = document.getElementById('loginForm');
+  form.style.display = 'block';
+  // Título según el rol
+  const title = document.getElementById('loginFormTitle');
+  title.textContent = role==='admin' ? 'Iniciar sesión · Administrador'
+                     : role==='noc' ? 'Iniciar sesión · NOC'
+                     : 'Iniciar sesión · Guardia';
+  // Llenar el select de usuarios según el rol
+  const sel = document.getElementById('loginUser');
+  let users;
+  if(role==='admin') users = DB.users.filter(u=>u.role==='admin' && u.active);
+  else users = DB.users.filter(u=>u.role==='user' && u.dept.toLowerCase().includes(role==='noc'?'noc':'guardia') && u.active);
+  if(users.length===0){
+    sel.innerHTML = '<option value="">No hay usuarios disponibles</option>';
+    document.getElementById('loginHintPwd').style.display = 'none';
+    return;
+  }
+  sel.innerHTML = users.map(u=>`<option value="${u.id}">${u.name}</option>`).join('');
+  // Pista de contraseña por defecto para pruebas
+  const hint = document.getElementById('loginHintPwd');
+  hint.style.display = 'none';
+  // Limpiar errores y campos
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('loginError').style.display = 'none';
+  // Foco al campo de contraseña
+  setTimeout(()=>document.getElementById('loginPassword').focus(), 100);
+}
+
+function backToRoles(){
+  pendingRole = null;
+  document.getElementById('loginForm').style.display = 'none';
+  document.querySelector('.roles').style.display = 'grid';
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('loginError').style.display = 'none';
+}
+
+function toggleLoginPwd(btn){
+  const input = document.getElementById('loginPassword');
+  if(input.type === 'password'){
+    input.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    input.type = 'password';
+    btn.textContent = '👁';
+  }
+}
+
+function doLogin(e){
+  e.preventDefault();
+  const userId = document.getElementById('loginUser').value;
+  const pwd = document.getElementById('loginPassword').value;
+  const errBox = document.getElementById('loginError');
+  if(!userId){
+    errBox.textContent = 'Selecciona un usuario.';
+    errBox.style.display = 'block';
+    return;
+  }
+  const u = DB.users.find(x=>x.id===userId);
+  if(!u){
+    errBox.textContent = 'Usuario no encontrado.';
+    errBox.style.display = 'block';
+    return;
+  }
+  if(!u.active){
+    errBox.textContent = 'Este usuario está inactivo. Contacta al administrador.';
+    errBox.style.display = 'block';
+    return;
+  }
+  if((u.password||'') !== pwd){
+    errBox.textContent = 'Contraseña incorrecta. Intenta de nuevo.';
+    errBox.style.display = 'block';
+    return;
+  }
+  // Login correcto
+  errBox.style.display = 'none';
+  const role = pendingRole;
+  session = {role, userId};
+  sessionStorage.setItem('session', JSON.stringify(session));
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  // Restaurar la pantalla de login para la próxima vez
+  document.getElementById('loginForm').style.display = 'none';
+  document.querySelector('.roles').style.display = 'grid';
+  document.getElementById('loginPassword').value = '';
+  initApp();
+}
+
+function login(role, userId){
+  // Compatibilidad con código existente (login directo sin contraseña)
+  // Solo se usa en sesiones restauradas desde sessionStorage
+  session = {role, userId};
+  sessionStorage.setItem('session', JSON.stringify(session));
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  initApp();
+}
+
+function logout(){
+  sessionStorage.removeItem('session');
+  session = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login').style.display = 'flex';
+  document.getElementById('loginForm').style.display = 'none';
+  document.querySelector('.roles').style.display = 'grid';
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('loginError').style.display = 'none';
+}
+
+function initApp(){
+  const u = DB.users.find(x=>x.id===session.userId) || DB.users[0];
+  const deptClass = u.dept==='NOC'?'noc':u.dept==='Guardias'?'guardia':'admin';
+  document.getElementById('topAvatar').className='avatar '+deptClass;
+  document.getElementById('topAvatar').textContent = initials(u.name);
+  document.getElementById('topName').textContent = u.name;
+  const roleLabel = session.role==='admin'?'Administrador':session.role==='noc'?'NOC':'Guardia';
+  document.getElementById('topRole').textContent = `${roleLabel} · ${u.dept}`;
+  buildTabs();
+  go(session.role==='admin'?'resumen':'nueva');
+  populateContraparte();
+  populateShifts();
+}
+
+function initials(name){
+  return name.split(' ').slice(0,2).map(s=>s[0]).join('').toUpperCase();
+}
+
+/* ===================== TABS ===================== */
+function buildTabs(){
+  const nav = document.getElementById('navTabs');
+  nav.innerHTML='';
+  const tabs = session.role==='admin'
+    ? [['resumen','📊 Resumen'],['pendientes','⏳ Pendientes'],['horario','🗓️ Horario'],['historial','📋 Historial'],['usuarios','👥 Usuarios']]
+    : [['nueva','➕ Nueva solicitud'],['mias','🗂️ Mis solicitudes'],['horario','🗓️ Mi horario']];
+  tabs.forEach(([k,l])=>{
+    const b=document.createElement('button');
+    b.className='tab';b.textContent=l;b.dataset.tab=k;
+    b.onclick=()=>go(k);
+    nav.appendChild(b);
+  });
+}
+
+function go(view){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active',t.dataset.tab===view));
+  const el = document.getElementById('view-'+view);
+  if(!el) return;
+  el.classList.add('active');
+  if(view==='resumen') renderResumen();
+  if(view==='pendientes') renderPendientes();
+  if(view==='horario') renderHorario();
+  if(view==='historial') renderHistorial();
+  if(view==='usuarios') renderUsuarios();
+  if(view==='nueva'){ selectType('cambio_turno'); populateContraparte(); populateShifts(); }
+  if(view==='mias') renderMyRequests();
+}
+
+/* ===================== ADMIN: RESUMEN ===================== */
+function renderResumen(){
+  const reqs = DB.requests;
+  const pend = reqs.filter(r=>r.status==='pendiente').length;
+  const ok = reqs.filter(r=>r.status==='aprobada').length;
+  const bad = reqs.filter(r=>r.status==='rechazada').length;
+  const noc = reqs.filter(r=>r.dept==='NOC').length;
+  const guard = reqs.filter(r=>r.dept==='Guardias').length;
+  const grid = document.getElementById('statsGrid');
+  grid.innerHTML = `
+    <div class="stat warn"><div class="label">Pendientes</div><div class="val">${pend}</div><div class="sub">Requieren acción</div></div>
+    <div class="stat ok"><div class="label">Aprobadas</div><div class="val">${ok}</div><div class="sub">Histórico</div></div>
+    <div class="stat bad"><div class="label">Rechazadas</div><div class="val">${bad}</div><div class="sub">Histórico</div></div>
+    <div class="stat"><div class="label">NOC</div><div class="val">${noc}</div><div class="sub">Solicitudes del área</div></div>
+    <div class="stat"><div class="label">Guardias</div><div class="val">${guard}</div><div class="sub">Solicitudes del área</div></div>
+    <div class="stat"><div class="label">Total</div><div class="val">${reqs.length}</div><div class="sub">Acumulado</div></div>
+  `;
+  const last = [...reqs].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,5);
+  document.getElementById('lastCount').textContent = last.length;
+  const rows = document.getElementById('lastRows');
+  rows.innerHTML = last.length? last.map(r=>{
+    const u = DB.users.find(x=>x.id===r.requesterId)||{name:'?',dept:r.dept};
+    return `<tr>
+      <td><div class="who"><div class="avatar ${deptClass(r.dept)}">${initials(u.name)}</div><div class="meta"><b>${u.name}</b><small>${r.dept}</small></div></div></td>
+      <td>${TYPE_ICO[r.type]} ${TYPE_LABEL[r.type]}</td>
+      <td>${detailSummary(r)}</td>
+      <td>${fmtDate(r.createdAt)}</td>
+      <td><span class="badge ${r.status}"><span class="bdot"></span>${r.status}</span></td>
+    </tr>`;
+  }).join('') : emptyRow(5,'Sin solicitudes aún.');
+}
+
+function deptClass(d){ return d==='NOC'?'noc':d==='Guardias'?'guardia':'admin'; }
+function fmtDate(s){ return s? s.replace('T',' '):'—'; }
+function detailSummary(r){
+  if(r.type==='cambio_turno'){
+    const c = DB.users.find(u=>u.id===r.contraparte);
+    return `${r.fechaOrigen} → ${r.fechaDestino} · con ${c?c.name:'—'}`;
+  }
+  if(r.type==='vacaciones') return `${r.fechaInicio} → ${r.fechaFin}`;
+  if(r.type==='permiso') return `${r.fechaPermiso} · ${r.duracionPermiso}`;
+  return '—';
+}
+function emptyRow(cols,msg){
+  return `<tr><td colspan="${cols}"><div class="empty"><div class="ico">📭</div>${msg}</div></td></tr>`;
+}
+
+/* ===================== ADMIN: PENDIENTES ===================== */
+function renderPendientes(){
+  const body = document.getElementById('pendientesBody');
+  const df = document.getElementById('pendDeptFilter').value;
+  const tf = document.getElementById('pendTypeFilter').value;
+  let list = DB.requests.filter(r=>r.status==='pendiente');
+  if(df) list = list.filter(r=>r.dept===df);
+  if(tf) list = list.filter(r=>r.type===tf);
+  list.sort((a,b)=>a.createdAt.localeCompare(b.createdAt));
+
+  if(list.length===0){
+    body.innerHTML = `<div class="empty"><div class="ico">✅</div>No hay solicitudes pendientes con los filtros actuales.</div>`;
+    return;
+  }
+  body.innerHTML = `<div class="req-list">${list.map(renderReqCard).join('')}</div>`;
+}
+
+function renderReqCard(r){
+  const u = DB.users.find(x=>x.id===r.requesterId)||{name:'?',dept:r.dept};
+  let detail = '';
+  if(r.type==='cambio_turno'){
+    const c = DB.users.find(u=>u.id===r.contraparte);
+    detail = `
+      <div class="req-meta">
+        <span>📅 Origen: <b style="color:var(--text)">${r.fechaOrigen}</b> · ${r.turnoOrigen}</span>
+        <span>📅 Destino: <b style="color:var(--text)">${r.fechaDestino}</b> · ${r.turnoDestino}</span>
+        <span>🔁 Intercambio con: <b style="color:var(--text)">${c?c.name:'—'}</b></span>
+      </div>`;
+  } else if(r.type==='vacaciones'){
+    const days = diffDays(r.fechaInicio,r.fechaFin);
+    detail = `<div class="req-meta">
+      <span>📅 Inicio: <b style="color:var(--text)">${r.fechaInicio}</b></span>
+      <span>📅 Regreso: <b style="color:var(--text)">${r.fechaFin}</b></span>
+      <span>🗓️ Días: <b style="color:var(--text)">${days}</b></span>
+    </div>`;
+  } else if(r.type==='permiso'){
+    detail = `<div class="req-meta">
+      <span>📅 Fecha: <b style="color:var(--text)">${r.fechaPermiso}</b></span>
+      <span>⏱️ Duración: <b style="color:var(--text)">${r.duracionPermiso}</b></span>
+    </div>`;
+  }
+  const reason = r.motivo||r.motivoVac||r.motivoPerm;
+  const resol = r.resolvedAt ? `<div class="req-resol">Resuelto el ${r.resolvedAt} por ${resolverName(r.resolvedBy)} · ${r.comments?'Comentario: '+r.comments:''}</div>` : '';
+  // Botón "Ver en calendario" para solicitudes aprobadas que afectan el calendario
+  const calBtn = (r.status==='aprobada' && r.type!=='rechazada')
+    ? `<button class="btn secondary sm" onclick="viewInHorario('${r.id}')">📅 Ver en calendario</button>`
+    : '';
+  let actions = '';
+  // Admin: aprobar/rechazar solo si está pendiente
+  if(r.status==='pendiente' && session.role==='admin'){
+    actions = `<div class="req-actions">
+         <button class="btn success sm" onclick="resolveReq('${r.id}','aprobada')">✓ Aprobar</button>
+         <button class="btn danger sm" onclick="resolveReq('${r.id}','rechazada')">✕ Rechazar</button>
+         <button class="btn ghost sm" onclick="viewReq('${r.id}')">Ver detalle</button>
+       </div>`;
+  }
+  // Propietario de la solicitud: editar/eliminar si NO está aprobada
+  if(r.requesterId===session.userId && r.status!=='aprobada'){
+    actions = `<div class="req-actions">
+         <button class="btn ghost sm" onclick="viewReq('${r.id}')">Ver detalle</button>
+         <button class="btn sm" onclick="editRequest('${r.id}')">✎ Editar</button>
+         <button class="btn danger sm" onclick="deleteRequest('${r.id}')">🗑 Eliminar</button>
+       </div>`;
+  }
+  // Si está aprobada y es del propietario: ver detalle + ver en calendario
+  if(r.requesterId===session.userId && r.status==='aprobada' && session.role!=='admin'){
+    actions = `<div class="req-actions">
+         <button class="btn ghost sm" onclick="viewReq('${r.id}')">Ver detalle</button>
+         ${calBtn}
+       </div>`;
+  }
+  // Admin viendo solicitudes aprobadas en historial/pendientes: también ver en calendario
+  if(r.status==='aprobada' && session.role==='admin' && r.requesterId!==session.userId){
+    actions = `<div class="req-actions">
+         <button class="btn ghost sm" onclick="viewReq('${r.id}')">Ver detalle</button>
+         ${calBtn}
+       </div>`;
+  }
+  return `<div class="req-card">
+    <div class="req-ico ${r.type}">${TYPE_ICO[r.type]}</div>
+    <div class="req-body">
+      <div class="req-top">
+        <div>
+          <div class="ttl">${TYPE_LABEL[r.type]} <small>· ${u.name} · <span class="badge dept">${r.dept}</span></small></div>
+          <div style="color:var(--muted-2);font-size:11.5px">Solicitado el ${r.createdAt}</div>
+        </div>
+        <span class="badge ${r.status}"><span class="bdot"></span>${r.status}</span>
+      </div>
+      ${detail}
+      ${reason?`<div class="req-reason">"${esc(reason)}"</div>`:''}
+      ${resol}
+      ${actions}
+    </div>
+  </div>`;
+}
+
+function diffDays(a,b){
+  if(!a||!b) return 0;
+  const d1=new Date(a),d2=new Date(b);
+  return Math.max(1,Math.round((d2-d1)/86400000)+1);
+}
+function resolverName(id){ const u=DB.users.find(x=>x.id===id); return u?u.name:'—'; }
+function esc(s){ return (s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* ---------- Helpers de fechas y cobertura ---------- */
+const MONTHS_SHORT = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const DAYS_SHORT = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+
+function dateFromStr(dateStr){ return new Date(dateStr+'T00:00:00'); }
+function addDaysStr(dateStr, n){ const d=dateFromStr(dateStr); d.setDate(d.getDate()+n); return fmtCalDate(d); }
+function dayNameOf(dateStr){ return DAYS[(dateFromStr(dateStr).getDay()+6)%7]; }
+function fmtDayLabel(dateStr){
+  const d=dateFromStr(dateStr);
+  return `${DAYS_SHORT[(d.getDay()+6)%7]} ${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`;
+}
+// Todas las fechas que abarca una solicitud de vacaciones o permiso
+function datesOfRequest(r){
+  if(r.type==='permiso') return r.fechaPermiso ? [r.fechaPermiso] : [];
+  if(r.type==='vacaciones' && r.fechaInicio && r.fechaFin){
+    const out=[]; let d=r.fechaInicio, guard=0;
+    while(d<=r.fechaFin && guard<400){ out.push(d); d=addDaysStr(d,1); guard++; }
+    return out;
+  }
+  return [];
+}
+function userHasShiftOnDate(userId, dateStr){
+  const sch=SCHEDULE[userId]; const dn=dayNameOf(dateStr);
+  return !!(sch && sch[dn] && sch[dn].length);
+}
+function shiftsTextOnDate(userId, dateStr){
+  const sch=SCHEDULE[userId]; const dn=dayNameOf(dateStr);
+  if(!sch||!sch[dn]||!sch[dn].length) return '';
+  return sch[dn].join(', ');
+}
+// ¿El técnico ya tiene vacaciones o permiso aprobado ese día? (excluye la solicitud que se está aprobando)
+function isUserAbsentOnDate(userId, dateStr, exceptReqId){
+  return DB.requests.some(x=>x.id!==exceptReqId && x.status==='aprobada' && x.requesterId===userId
+    && ((x.type==='vacaciones' && x.fechaInicio<=dateStr && dateStr<=x.fechaFin) || (x.type==='permiso' && x.fechaPermiso===dateStr)));
+}
+// Quién cubre en una fecha concreta (por día; si es una solicitud antigua usa el cubierto único)
+function coverForDate(r, dateStr){
+  if(r.cubiertoPorDia && r.cubiertoPorDia[dateStr]) return r.cubiertoPorDia[dateStr];
+  return r.cubiertoPor || null;
+}
+function userNameById(id){ const u=DB.users.find(x=>x.id===id); return u?u.name:'—'; }
+
+// Selector "aplicar a todos los días" del modal de cobertura
+function applyCoverAll(v){
+  if(!v) return;
+  document.querySelectorAll('.coverDay').forEach(sel=>{
+    const opt=[...sel.options].find(o=>o.value===v && !o.disabled);
+    if(opt) sel.value=v;
+  });
+  updateCoverSummary();
+}
+// Resumen en vivo: quién cubre a quién y en qué día
+function updateCoverSummary(){
+  const box=document.getElementById('coverSummary'); if(!box) return;
+  const who=box.dataset.who||'';
+  const lines=[];
+  document.querySelectorAll('.coverDay').forEach(sel=>{
+    if(sel.value) lines.push(`<li><b style="color:var(--text)">${userNameById(sel.value)}</b> cubre a ${who} el <b style="color:var(--text)">${fmtDayLabel(sel.dataset.date)}</b></li>`);
+  });
+  box.innerHTML = lines.length
+    ? `<div style="font-weight:600;margin-bottom:6px;color:#fde68a">⚠️ Cobertura que se va a registrar:</div><ul style="margin:0 0 0 18px;padding:0;font-size:12.5px;line-height:1.6">${lines.join('')}</ul>`
+    : `<div style="color:var(--muted)">Aún no has elegido quién cubre.</div>`;
+}
+
+function resolveReq(id,status){
+  const r = DB.requests.find(x=>x.id===id);
+  if(!r) return;
+  const isApprove = (status==='aprobada');
+  const solicitante = reqUserName(r);
+
+  // Aprobación de vacaciones o días libres (permiso): el admin debe indicar quién cubre cada día
+  if(isApprove && (r.type==='vacaciones' || r.type==='permiso')){
+    const solicitanteUser = DB.users.find(x=>x.id===r.requesterId);
+    const dept = solicitanteUser ? solicitanteUser.dept : r.dept;
+    // SOLO técnicos del mismo departamento, activos, que NO sean quien pidió el día
+    const candidates = DB.users.filter(u=>u.dept===dept && u.role!=='admin' && u.active && u.id!==r.requesterId);
+    const allDates = datesOfRequest(r);
+    const workDates = allDates.filter(d=>userHasShiftOnDate(r.requesterId,d));
+    const freeDates = allDates.filter(d=>!userHasShiftOnDate(r.requesterId,d));
+
+    const fechasStr = r.type==='vacaciones'
+      ? `${r.fechaInicio} al ${r.fechaFin}`
+      : `${r.fechaPermiso} (${r.duracionPermiso||''})`;
+
+    const optionsFor = (d)=>{
+      const absent = new Set(candidates.filter(u=>isUserAbsentOnDate(u.id,d,r.id)).map(u=>u.id));
+      const someAvailable = candidates.some(u=>!absent.has(u.id));
+      return '<option value="">Selecciona un técnico…</option>' + candidates.map(u=>{
+        const isAbs = absent.has(u.id);
+        const disabled = isAbs && someAvailable; // si nadie está libre, se permite elegir (con aviso)
+        return `<option value="${u.id}" ${disabled?'disabled':''}>${u.name}${isAbs?' — ausente ese día':''}</option>`;
+      }).join('');
+    };
+
+    let coverHtml = '';
+    if(candidates.length===0){
+      coverHtml = `<div style="background:rgba(239,68,68,.12);border-left:3px solid var(--danger);padding:10px 14px;border-radius:7px;font-size:12.5px">No hay otros técnicos activos en ${dept} que puedan cubrir.</div>`;
+    } else if(workDates.length===0){
+      coverHtml = `<div style="background:var(--bg-2);border-left:3px solid var(--muted-2);padding:10px 14px;border-radius:7px;font-size:12.5px;color:var(--muted)">${solicitante} no tiene turnos programados en esas fechas, por lo que no se necesita cobertura.</div>`;
+    } else {
+      const bulk = workDates.length>1 ? `
+        <div class="field" style="margin-bottom:12px">
+          <label>Aplicar el mismo técnico a todos los días</label>
+          <select id="coverAll" onchange="applyCoverAll(this.value)">
+            <option value="">Elegir uno para todos…</option>
+            ${candidates.map(u=>`<option value="${u.id}">${u.name}</option>`).join('')}
+          </select>
+        </div>` : '';
+      coverHtml = `${bulk}
+        <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow:auto;padding-right:4px">
+          ${workDates.map(d=>`
+            <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:10px;align-items:center;background:var(--bg-2);border:1px solid var(--border-soft);border-radius:8px;padding:8px 10px">
+              <div style="font-size:12.5px"><b style="color:var(--text)">${fmtDayLabel(d)}</b><div style="color:var(--muted-2);font-size:11px">Turno: ${shiftsTextOnDate(r.requesterId,d)}</div></div>
+              <select class="coverDay" data-date="${d}" onchange="updateCoverSummary()">${optionsFor(d)}</select>
+            </div>`).join('')}
+        </div>
+        ${freeDates.length?`<div style="color:var(--muted-2);font-size:11px;margin-top:8px">Días sin turno programado (no necesitan cobertura): ${freeDates.map(fmtDayLabel).join(', ')}.</div>`:''}
+        <small style="color:var(--muted-2);font-size:11px;display:block;margin-top:8px">Solo aparecen técnicos activos del departamento ${dept}; ${solicitante} no aparece en la lista.</small>`;
+    }
+
+    openModal(
+      `Aprobar ${TYPE_LABEL[r.type]} · ${solicitante}`,
+      `<p style="margin-bottom:14px;color:var(--muted)">Vas a <b style="color:var(--success)">aprobar</b> la solicitud de <b>${solicitante}</b> (${TYPE_LABEL[r.type]}) para: <b style="color:var(--text)">${fechasStr}</b>.</p>
+       <div style="background:rgba(245,158,11,.12);border-left:3px solid var(--warning);padding:12px 14px;border-radius:7px;margin-bottom:14px;font-size:12.5px;color:#fde68a">
+         ⚠️ <b>Atención:</b> ${solicitante} no estará disponible. Debes indicar <b style="color:var(--text)">quién cubre${workDates.length>1?' cada día':' ese día'}</b> a ${solicitante}.
+       </div>
+       ${coverHtml}
+       <div id="coverSummary" data-who="${solicitante}" style="background:rgba(245,158,11,.08);border:1px dashed var(--warning);border-radius:8px;padding:10px 14px;margin-top:14px;font-size:12.5px;color:#fde68a${workDates.length&&candidates.length?'':';display:none'}"></div>
+       <div class="field" style="margin-top:14px">
+         <label>Comentario / justificación (opcional)</label>
+         <textarea id="resolComment" placeholder="Ej. Coordinar cobertura con… / Cambios de turno ya asignados…"></textarea>
+       </div>`,
+      [
+        {label:'Cancelar',cls:'ghost',onclick:closeModal},
+        {label:'Aprobar y asignar cobertura',cls:'success',onclick:()=>{
+          const needsCover = workDates.length>0 && candidates.length>0;
+          const map = {};
+          if(needsCover){
+            const selects=[...document.querySelectorAll('.coverDay')];
+            const missing = selects.find(sel=>!sel.value);
+            if(missing){
+              toast(`Falta indicar quién cubre el ${fmtDayLabel(missing.dataset.date)}`,'err');
+              return;
+            }
+            selects.forEach(sel=>{ map[sel.dataset.date]=sel.value; });
+          }
+          r.status='aprobada'; r.resolvedAt=nowStr(); r.resolvedBy=session.userId;
+          r.cubiertoPorDia = map;
+          const ids = Object.values(map);
+          r.cubiertoPor = ids.length ? ids[0] : null;   // compatibilidad con el campo anterior
+          r.comments = document.getElementById('resolComment').value.trim();
+          save(); closeModal();
+          const names = [...new Set(ids.map(userNameById))];
+          toast(names.length?`Solicitud aprobada. Cubre: ${names.join(', ')}`:'Solicitud aprobada','ok');
+          renderPendientes(); renderResumen();
+        }}
+      ]
+    );
+    updateCoverSummary();
+    return;
+  }
+
+  // Cambio de turno o rechazo
+  let cambioInfo = '';
+  if(r.type==='cambio_turno'){
+    const contra = userNameById(r.contraparte);
+    const sameDay = r.fechaOrigen===r.fechaDestino;
+    cambioInfo = `<div style="background:rgba(168,85,247,.12);border-left:3px solid #a78bfa;padding:10px 14px;border-radius:7px;margin-bottom:14px;font-size:12.5px;color:#ddd6fe">
+      ℹ️ Al aprobar, el cambio se verá en el calendario <b style="color:var(--text)">únicamente ${sameDay?'el día':'en los días'} solicitado${sameDay?'':'s'}</b> (${sameDay?fmtDayLabel(r.fechaOrigen):fmtDayLabel(r.fechaOrigen)+' y '+fmtDayLabel(r.fechaDestino)}); el resto de las semanas no cambia.
+      <ul style="margin:8px 0 0 18px;padding:0;line-height:1.6">
+        <li><b style="color:var(--text)">${fmtDayLabel(r.fechaOrigen)}</b>: ${solicitante} cede «${r.turnoOrigen}» y lo hace ${contra}.</li>
+        <li><b style="color:var(--text)">${fmtDayLabel(r.fechaDestino)}</b>: ${contra} cede «${r.turnoDestino}» y lo hace ${solicitante}.</li>
+      </ul></div>`;
+  }
+  openModal(
+    status==='aprobada'?'Aprobar solicitud':'Rechazar solicitud',
+    `<p style="margin-bottom:14px;color:var(--muted)">Vas a <b style="color:${status==='aprobada'?'var(--success)':'var(--danger)'}">${status==='aprobada'?'aprobar':'rechazar'}</b> la solicitud de <b>${solicitante}</b> (${TYPE_LABEL[r.type]}).</p>
+     ${isApprove ? cambioInfo : ''}
+     <div class="field"><label>Comentario / justificación (opcional)</label><textarea id="resolComment" placeholder="Ej. Coordinar cobertura con… / No hay personal disponible…"></textarea></div>`,
+    [
+      {label:'Cancelar',cls:'ghost',onclick:closeModal},
+      {label:'Confirmar',cls:isApprove?'success':'danger',onclick:()=>{
+        r.status=status; r.resolvedAt=nowStr(); r.resolvedBy=session.userId;
+        r.comments = document.getElementById('resolComment').value.trim();
+        save(); closeModal(); toast('Solicitud '+(isApprove?'aprobada':'rechazada'),'ok');
+        renderPendientes(); renderResumen();
+      }}
+    ]
+  );
+}
+function reqUserName(r){ const u=DB.users.find(x=>x.id===r.requesterId); return u?u.name:'—'; }
+
+function viewReq(id){
+  const r = DB.requests.find(x=>x.id===id); if(!r) return;
+  const u = DB.users.find(x=>x.id===r.requesterId)||{};
+  let rows = [];
+  rows.push(['Solicitante',u.name||'—']);
+  rows.push(['Departamento',r.dept]);
+  rows.push(['Tipo',TYPE_LABEL[r.type]]);
+  if(r.type==='cambio_turno'){
+    rows.push(['Fecha origen',r.fechaOrigen]); rows.push(['Turno origen',r.turnoOrigen]);
+    rows.push(['Fecha destino',r.fechaDestino]); rows.push(['Turno destino',r.turnoDestino]);
+    const c=DB.users.find(u=>u.id===r.contraparte);
+    rows.push(['Intercambio con',c?c.name:'—']);
+  }
+  if(r.type==='vacaciones'){
+    rows.push(['Fecha inicio',r.fechaInicio]); rows.push(['Fecha regreso',r.fechaFin]);
+    rows.push(['Días',diffDays(r.fechaInicio,r.fechaFin)]);
+  }
+  if(r.type==='permiso'){
+    rows.push(['Fecha',r.fechaPermiso]); rows.push(['Duración',r.duracionPermiso]);
+  }
+  const reason = r.motivo||r.motivoVac||r.motivoPerm;
+  rows.push(['Motivo',reason||'—']);
+  rows.push(['Creada',r.createdAt]);
+  if(r.resolvedAt){
+    rows.push(['Resuelta',r.resolvedAt]);
+    rows.push(['Por',resolverName(r.resolvedBy)]);
+    if(r.cubiertoPorDia && Object.keys(r.cubiertoPorDia).length){
+      rows.push(['Cobertura', Object.keys(r.cubiertoPorDia).sort().map(d=>`${fmtDayLabel(d)}: ${userNameById(r.cubiertoPorDia[d])}`).join(' · ')]);
+    } else if(r.cubiertoPor){
+      const cover = DB.users.find(x=>x.id===r.cubiertoPor);
+      rows.push(['Cubierto por', cover?cover.name:'—']);
+    }
+    rows.push(['Comentario',r.comments||'—']);
+  }
+  openModal('Detalle de solicitud',
+    `<table style="width:100%;font-size:13px"><tbody>${rows.map(([k,v])=>`<tr><td style="color:var(--muted);padding:8px 0;width:40%;vertical-align:top">${k}</td><td style="padding:8px 0">${esc(String(v))}</td></tr>`).join('')}</tbody></table>`,
+    [{label:'Cerrar',cls:'ghost',onclick:closeModal}]
+  );
+}
+
+/* ===================== HORARIO OFICIAL ===================== */
+let horarioView = null; // 'NOC' | 'Guardias' | null (=auto)
+
+function renderHorario(){
+  const filters = document.getElementById('horarioFilters');
+  const container = document.getElementById('horarioPanels');
+
+  // Determinar qué departamentos mostrar
+  let depts = [];
+  if(session.role==='admin'){
+    depts = ['NOC','Guardias'];
+  } else {
+    const me = DB.users.find(u=>u.id===session.userId);
+    depts = me && me.dept ? [me.dept] : ['NOC'];
+  }
+
+  // Filtros de departamento (solo admin puede cambiar)
+  if(session.role==='admin'){
+    filters.innerHTML = `
+      <div class="seg">
+        <button class="${horarioView===null?'active':''}" onclick="horarioView=null;renderHorario()">Ambos</button>
+        <button class="${horarioView==='NOC'?'active':''}" onclick="horarioView='NOC';renderHorario()">NOC</button>
+        <button class="${horarioView==='Guardias'?'active':''}" onclick="horarioView='Guardias';renderHorario()">Guardias</button>
+      </div>`;
+  } else {
+    filters.innerHTML = '';
+  }
+
+  // Toggle de modo (oficial / aplicado)
+  const toggle = document.getElementById('calModeToggle');
+  toggle.innerHTML = `
+    <button class="mode-btn ${calMode==='oficial'?'active':''}" onclick="setCalMode('oficial')">📋 Horario oficial</button>
+    <button class="mode-btn ${calMode==='aplicado'?'active':''}" onclick="setCalMode('aplicado')">✅ Con solicitudes aprobadas</button>
+  `;
+
+  // Leyenda de colores
+  document.getElementById('calLegend').innerHTML = `
+    <span class="lg"><i style="background:#3b82f6"></i>Turno regular</span>
+    <span class="lg"><i class="vac"></i>Vacaciones aprobadas</span>
+    <span class="lg"><i class="perm"></i>Permiso aprobado</span>
+    <span class="lg"><i class="camb"></i>Cambio de turno aprobado</span>
+  `;
+
+  // Info de la semana
+  const weekDates = getWeekDates(calWeekOffset);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const isThisWeek = calWeekOffset===0;
+  const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const startStr = `${weekDates[0].getDate()} ${monthNames[weekDates[0].getMonth()]}`;
+  const endStr = `${weekDates[6].getDate()} ${monthNames[weekDates[6].getMonth()]} ${weekDates[6].getFullYear()}`;
+
+  let weekLabel = 'Semana actual';
+  if(calWeekOffset<0) weekLabel = `Hace ${Math.abs(calWeekOffset)} semana(s)`;
+  else if(calWeekOffset>0) weekLabel = `En ${calWeekOffset} semana(s)`;
+
+  document.getElementById('calWeekInfo').innerHTML = `
+    <b>Semana del ${startStr} al ${endStr}</b>
+    <small>${weekLabel} · ${calMode==='oficial'?'Horario oficial':'Con solicitudes aprobadas'}</small>
+  `;
+  document.getElementById('calTodayBadge').innerHTML = isThisWeek
+    ? `<span class="today-badge">● Semana actual</span>`
+    : (calWeekOffset<0
+        ? `<span class="today-badge" style="background:rgba(100,116,139,.15);color:var(--muted);border-color:var(--border)">↩ Semana pasada</span>`
+        : `<span class="today-badge" style="background:rgba(168,85,247,.15);color:#a78bfa;border-color:rgba(168,85,247,.35)">→ Semana futura</span>`);
+
+  // Resumen de solicitudes de la semana
+  const deptFilter = horarioView;
+  const approvedCount = DB.requests.filter(r=>r.status==='aprobada' && overlapsWeek(r, weekDates) && (!deptFilter || r.dept===deptFilter)).length;
+  const pendingCount = DB.requests.filter(r=>r.status==='pendiente' && overlapsWeek(r, weekDates) && (!deptFilter || r.dept===deptFilter)).length;
+  const alertBox = document.getElementById('calAlertBox');
+  if(calMode==='aplicado'){
+    alertBox.innerHTML = approvedCount
+      ? `<div class="cal-alert"><b>${approvedCount} solicitud(es) aprobada(s)</b> aplicada(s) sobre el horario oficial esta semana.</div>`
+      : `<div class="cal-alert" style="background:var(--bg-2);border-left-color:var(--muted-2);color:var(--muted)"><b>Sin solicitudes aprobadas</b> que afecten esta semana. El calendario coincide con el horario oficial.</div>`;
+  } else {
+    alertBox.innerHTML = `<div class="cal-week-summary">
+      <span class="ws">📅 <b>${weekLabel}</b></span>
+      <span class="ws">⏳ Pendientes esta semana: <b>${pendingCount}</b></span>
+      <span class="ws">✅ Aprobadas esta semana: <b>${approvedCount}</b></span>
+      <span class="ws" style="margin-left:auto;color:var(--muted-2)">Usa los botones ← → para navegar entre semanas pasadas y futuras</span>
+    </div>`;
+  }
+
+  // Renderizar paneles por departamento
+  const showDepts = horarioView ? [horarioView] : depts;
+  container.innerHTML = showDepts.map(d=>buildDeptPanel(d, weekDates, today, monthNames)).join('');
+}
+
+function buildDeptPanel(dept, weekDates, today, monthNames){
+  const users = DB.users.filter(u=>u.dept===dept && u.role!=='admin' && u.active);
+  // Leyenda de técnicos
+  const legend = users.map(u=>{
+    const c = DEPT_COLORS[u.id] || '#64748b';
+    return `<span class="lg"><i style="background:${c}"></i>${u.name}</span>`;
+  }).join('');
+  // Strip con total de horas semanales
+  const strip = users.map(u=>{
+    const c = DEPT_COLORS[u.id] || '#64748b';
+    const total = weeklyHours(u.id);
+    return `<span class="ps"><i style="background:${c}"></i>${u.name} <small>· ${total} h/sem</small></span>`;
+  }).join('');
+
+  // Encabezado de días con fechas reales
+  const headDays = weekDates.map((date,i)=>{
+    const isToday = (date.getTime()===today.getTime());
+    const isWeekend = (i>=5);
+    return `<th class="day-col ${isToday?'today-col':''} ${isWeekend?'weekend-col':''}">
+      <span class="day-name">${DAYS[i]}</span>
+      <span class="day-date">${date.getDate()} ${monthNames[date.getMonth()]}</span>
+    </th>`;
+  }).join('');
+
+  // Filas por hora
+  const hours = hourTicks(dept);
+  const rows = hours.map(h=>{
+    const tds = weekDates.map((date,i)=>{
+      const dayName = DAYS[i];
+      const isWeekend = (i>=5);
+      const blocks = buildCalCellBlocks(users, dayName, date, h, calMode);
+      return `<td class="${isWeekend?'weekend-cell':''}">${blocks}</td>`;
+    }).join('');
+    return `<tr><th>${formatHourRange(h)}</th>${tds}</tr>`;
+  }).join('');
+
+  return `<div class="panel">
+    <div class="panel-head">
+      <h3>🗓️ Horario · ${dept}</h3>
+      <span class="badge ${dept==='NOC'?'noc':'guardia'}">${users.length} técnicos</span>
+    </div>
+    <div class="panel-body">
+      <div class="legend-schedule">${legend}</div>
+      <div class="person-strip">${strip}</div>
+      <div class="cal-table-wrap">
+        <table class="cal-sched">
+          <thead><tr><th class="time-col">Franja horaria</th>${headDays}</tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="cal-table-foot">Franja horaria de 1 hora · el día resaltado en azul es hoy · los fines de semana tienen fondo más oscuro.</div>
+      </div>
+      ${calMode==='aplicado' ? `<p style="margin-top:12px;color:var(--muted-2);font-size:12px">Modo "Con solicitudes aprobadas": los turnos regulares de técnicos de vacaciones se ocultan, y se muestran bloques <b style="color:var(--success)">verdes</b> (vacaciones), <b style="color:var(--warning)">amarillos</b> (permisos) y <b style="color:#a78bfa">morados</b> (cambios de turno) aprobados.</p>` : ''}
+    </div>
+  </div>`;
+}
+
+function shortName(full){
+  const parts = full.trim().split(' ');
+  if(parts.length===1) return parts[0];
+  return parts[0] + ' ' + parts[parts.length-1];
+}
+
+function weeklyHours(uid){
+  const sch = SCHEDULE[uid];
+  if(!sch) return 0;
+  let total = 0;
+  Object.values(sch).forEach(segs=>{
+    segs.forEach(s=>{
+      const m = s.match(/(\d{2}):00\s*-\s*(\d{2}):00/);
+      if(m){
+        let a = parseInt(m[1],10), b = parseInt(m[2],10);
+        if(b<=a) b += 24; // turno que cruza medianoche
+        total += (b-a);
+      }
+    });
+  });
+  return total;
+}
+
+function hourTicks(dept){
+  // Generar marcas por hora: 00:00 ... 23:00 (24 filas, cada una representa [h, h+1))
+  const ticks = [];
+  for(let h=0; h<24; h++){
+    ticks.push(String(h).padStart(2,'0')+':00');
+  }
+  return ticks;
+}
+
+// Formatea una marca de hora como rango legible: "05:00 a 06:00"
+// h es un string tipo "05:00"
+function formatHourRange(h){
+  const start = parseInt(h.split(':')[0],10);
+  const end = (start+1)%24;
+  const pad = n=>String(n).padStart(2,'0')+':00';
+  // Para el cierre de medianoche mostramos "24:00" en vez de "00:00" para que sea claro
+  const endLabel = end===0 ? '24:00' : pad(end);
+  return `${pad(start)} a ${endLabel}`;
+}
+
+function coversHour(seg, tick){
+  // seg = "13:00-22:00" o "00:00-06:00" o "23:00-24:00"
+  // tick = "HH:00" representa la franja [HH, HH+1)
+  const m = seg.match(/(\d{2}):00\s*-\s*(\d{2}):00/);
+  if(!m) return false;
+  let a = parseInt(m[1],10), b = parseInt(m[2],10);
+  if(b<=a) b += 24; // turno que cruza medianoche (p.ej. 22:00-06:00)
+  let h = parseInt(tick.split(':')[0],10);
+  // Para tick 00:00 en un turno que cruza medianoche (a>12), normalizar h también
+  if(h<12 && a>12) h += 24;
+  return h>=a && h<b;
+}
+
+/* ===================== CALENDARIO SEMANAL (estado y helpers) ===================== */
+let calWeekOffset = 0;   // 0 = semana actual; -1 = anterior; 1 = siguiente
+let calMode = 'aplicado'; // 'oficial' | 'aplicado' (por defecto se ven las solicitudes aprobadas)
+
+function setCalMode(m){ calMode=m; renderHorario(); }
+function calNav(dir){ calWeekOffset = (dir===0)?0:calWeekOffset+dir; renderHorario(); }
+
+// Navega a la semana de la solicitud y muestra el modo "Con solicitudes aprobadas"
+// para que el usuario pueda ver el cambio reflejado en el calendario.
+function viewInHorario(reqId){
+  const r = DB.requests.find(x=>x.id===reqId);
+  if(!r){ toast('Solicitud no encontrada','err'); return; }
+  // Determinar la fecha relevante de la solicitud
+  let targetDateStr = null;
+  if(r.type==='cambio_turno') targetDateStr = r.fechaOrigen || r.fechaDestino;
+  else if(r.type==='vacaciones') targetDateStr = r.fechaInicio;
+  else if(r.type==='permiso') targetDateStr = r.fechaPermiso;
+  if(!targetDateStr){ toast('Sin fecha para navegar','err'); return; }
+  // Calcular offset en semanas respecto a la semana actual
+  const target = new Date(targetDateStr + 'T00:00:00');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const dayOfWeek = (today.getDay()+6)%7;
+  const monday = new Date(today); monday.setDate(today.getDate()-dayOfWeek);
+  const diffMs = target.getTime() - monday.getTime();
+  const diffDays = Math.round(diffMs / (24*60*60*1000));
+  const offset = Math.floor(diffDays / 7);
+  calWeekOffset = offset;
+  calMode = 'aplicado';
+  // Navegar a la pestaña Horario
+  go('horario');
+  toast(`Mostrando semana del ${targetDateStr} (modo aplicado)`,'ok');
+}
+
+function getWeekDates(offset){
+  // Lunes de la semana objetivo
+  const today = new Date();
+  const dayOfWeek = (today.getDay()+6)%7; // 0=Lun, 6=Dom
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - dayOfWeek + offset*7);
+  monday.setHours(0,0,0,0);
+  return Array.from({length:7}, (_,i)=>{
+    const d = new Date(monday);
+    d.setDate(monday.getDate()+i);
+    return d;
+  });
+}
+
+function fmtCalDate(d){
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const dd=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+
+// Verifica si una solicitud toca la semana objetivo
+function overlapsWeek(r, weekDates){
+  const start = new Date(weekDates[0]); start.setHours(0,0,0,0);
+  const end = new Date(weekDates[6]); end.setHours(23,59,59,999);
+  const inRange = (dStr)=>{ if(!dStr) return false; const d=new Date(dStr+'T00:00:00'); return d>=start && d<=end; };
+  if(r.type==='vacaciones'){
+    if(!r.fechaInicio || !r.fechaFin) return false;
+    const fi=new Date(r.fechaInicio+'T00:00:00');
+    const ff=new Date(r.fechaFin+'T23:59:59');
+    return fi<=end && ff>=start;
+  }
+  if(r.type==='permiso') return inRange(r.fechaPermiso);
+  if(r.type==='cambio_turno') return inRange(r.fechaOrigen) || inRange(r.fechaDestino);
+  return false;
+}
+
+// ----- Cambios de turno aprobados -----
+// Cada cambio se compone de dos "tramos":
+//   1) en fechaOrigen: el solicitante cede turnoOrigen y lo hace la contraparte
+//   2) en fechaDestino: la contraparte cede turnoDestino y lo hace el solicitante
+// Si ambas fechas son iguales es un intercambio de UN solo día. El efecto se aplica
+// únicamente en esas fechas (y por eso solo en la semana donde se solicitó).
+function cambioLegs(c){
+  return [
+    {base:c.fechaOrigen,  label:c.turnoOrigen,  from:c.requesterId, to:c.contraparte},
+    {base:c.fechaDestino, label:c.turnoDestino, from:c.contraparte, to:c.requesterId}
+  ];
+}
+// ¿La franja "label" que empieza el día baseDate cubre la hora h de la fecha targetDate?
+// (los turnos que cruzan medianoche, p.ej. 22:00-06:00, continúan al día siguiente)
+function labelCoversDateHour(label, baseDate, targetDate, h){
+  const m = (label||'').match(/(\d{2}):00\s*-\s*(\d{2}):00/);
+  if(!m || !baseDate) return false;
+  const a=parseInt(m[1],10), b=parseInt(m[2],10);
+  if(b>a) return targetDate===baseDate && h>=a && h<b;
+  return (targetDate===baseDate && h>=a) || (targetDate===addDaysStr(baseDate,1) && h<b);
+}
+// Efecto de los cambios de turno aprobados sobre un técnico en una fecha y hora concretas
+function cambioEffectOnUser(userId, dateStr, h){
+  let gives=false, gets=null;
+  DB.requests.forEach(r=>{
+    if(r.status!=='aprobada' || r.type!=='cambio_turno') return;
+    cambioLegs(r).forEach(leg=>{
+      if(!labelCoversDateHour(leg.label, leg.base, dateStr, h)) return;
+      if(leg.from===userId) gives=true;
+      if(leg.to===userId) gets={label:leg.label, other:leg.from};
+    });
+  });
+  return {gives, gets};
+}
+
+function findAbsenceReq(userId, dateStr){
+  return DB.requests.find(r=>r.status==='aprobada' && r.requesterId===userId &&
+    ((r.type==='vacaciones' && r.fechaInicio<=dateStr && dateStr<=r.fechaFin) || (r.type==='permiso' && r.fechaPermiso===dateStr)));
+}
+
+// Genera el contenido de UNA CELDA (día concreto, franja horaria concreta) del calendario
+function buildCalCellBlocks(users, dayName, date, hourTick, mode){
+  const dateStr = fmtCalDate(date);
+  const h = parseInt(hourTick.split(':')[0],10);
+  const blocks = [];
+
+  users.forEach(u=>{
+    const sch = SCHEDULE[u.id];
+    const found = (sch && sch[dayName]) ? sch[dayName].find(seg=>coversHour(seg, hourTick)) : null;
+    const c = DEPT_COLORS[u.id] || '#64748b';
+
+    if(mode==='aplicado'){
+      // === CAMBIO DE TURNO APROBADO (solo en la fecha/hora del cambio) ===
+      const fx = cambioEffectOnUser(u.id, dateStr, h);
+      if(fx.gets){
+        const other = DB.users.find(x=>x.id===fx.gets.other);
+        blocks.push(`<div class="cal-cell-block cambio-cell" style="background:${c}">
+          <span class="ccb-name">🔁 ${shortName(u.name)}</span>
+          <span class="ccb-sub">${fx.gets.label} · cambio con ${other?shortName(other.name):'—'}</span>
+        </div>`);
+        return;
+      }
+      if(fx.gives) return; // cedió esta franja: la hace su compañero en el cambio
+
+      if(!found) return;
+      // === VACACIONES / PERMISO APROBADO ===
+      const abs = findAbsenceReq(u.id, dateStr);
+      if(abs){
+        const coverId = coverForDate(abs, dateStr);
+        const coverUser = coverId ? DB.users.find(x=>x.id===coverId) : null;
+        if(abs.type==='vacaciones'){
+          blocks.push(`<div class="cal-cell-block vacation-cell">
+            <span class="ccb-name">🌴 ${shortName(u.name)}</span>
+            <span class="ccb-sub">${coverUser?'Cubre: '+shortName(coverUser.name):'VACACIONES'}</span>
+          </div>`);
+        } else {
+          blocks.push(`<div class="cal-cell-block permiso-cell">
+            <span class="ccb-name">📝 ${shortName(u.name)}</span>
+            <span class="ccb-sub">Permiso · ${abs.duracionPermiso||''}${coverUser?' · Cubre: '+shortName(coverUser.name):''}</span>
+          </div>`);
+        }
+        return;
+      }
+    }
+
+    // Turno regular (modo oficial, o sin cambios aprobados)
+    if(!found) return;
+    blocks.push(`<div class="cal-cell-block" style="background:${c}">
+      <span class="ccb-name">${shortName(u.name)}</span>
+      <span class="ccb-sub">${found}</span>
+    </div>`);
+  });
+
+  if(blocks.length===0) return `<div class="cal-cell-empty">·</div>`;
+  return blocks.join('');
+}
+
+function isUserOnVacation(userId, dateStr){
+  return DB.requests.some(r=>r.status==='aprobada' && r.type==='vacaciones'
+    && r.requesterId===userId && r.fechaInicio<=dateStr && dateStr<=r.fechaFin);
+}
+
+// Verifica si el usuario tiene un permiso aprobado para esa fecha
+function isUserOnPermiso(userId, dateStr){
+  return DB.requests.some(r=>r.status==='aprobada' && r.type==='permiso'
+    && r.requesterId===userId && r.fechaPermiso===dateStr);
+}
+
+// Verifica si el usuario participa en un cambio de turno aprobado para esa fecha
+// (ya sea como solicitante o como contraparte)
+function isUserInCambio(userId, dateStr){
+  return DB.requests.some(r=>r.status==='aprobada' && r.type==='cambio_turno'
+    && (r.fechaOrigen===dateStr || r.fechaDestino===dateStr)
+    && (r.requesterId===userId || r.contraparte===userId));
+}
+
+function affectsDate(r, dateStr, dayName){
+  if(r.type==='vacaciones') return r.fechaInicio<=dateStr && dateStr<=r.fechaFin;
+  if(r.type==='permiso') return r.fechaPermiso===dateStr;
+  if(r.type==='cambio_turno') return r.fechaOrigen===dateStr || r.fechaDestino===dateStr;
+  return false;
+}
+
+/* ===================== ADMIN: HISTORIAL ===================== */
+let histPreset = 'all';
+
+function renderHistorial(){
+  const search = document.getElementById('histSearch').value.toLowerCase().trim();
+  const df = document.getElementById('histDept').value;
+  const sf = document.getElementById('histStatus').value;
+  const tf = document.getElementById('histType').value;
+  const desde = document.getElementById('histFechaDesde').value;
+  const hasta = document.getElementById('histFechaHasta').value;
+  let list = [...DB.requests];
+  if(df) list=list.filter(r=>r.dept===df);
+  if(sf) list=list.filter(r=>r.status===sf);
+  if(tf) list=list.filter(r=>r.type===tf);
+  if(search){
+    list=list.filter(r=>{
+      const u=DB.users.find(x=>x.id===r.requesterId)||{};
+      const txt=(u.name+' '+(r.motivo||r.motivoVac||r.motivoPerm||'')+' '+r.createdAt+' '+r.dept+' '+TYPE_LABEL[r.type]).toLowerCase();
+      return txt.includes(search);
+    });
+  }
+  // Filtro por rango de fechas: una solicitud toca el rango si ALGUNA de sus fechas relevantes cae dentro
+  if(desde || hasta){
+    list = list.filter(r=>{
+      const fechas = relevantDates(r);
+      if(fechas.length===0) return false;
+      return fechas.some(f=>{
+        if(desde && f < desde) return false;
+        if(hasta && f > hasta) return false;
+        return true;
+      });
+    });
+  }
+  list.sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
+
+  // Info de cantidad filtrada
+  const info = document.getElementById('histDateInfo');
+  if(info){
+    const total = DB.requests.length;
+    const filtered = list.length;
+    if(desde || hasta){
+      info.textContent = `${filtered} de ${total} solicitudes en el rango seleccionado`;
+    } else {
+      info.textContent = `${filtered} de ${total} solicitudes`;
+    }
+  }
+
+  const rows=document.getElementById('histRows');
+  rows.innerHTML = list.length? list.map(r=>{
+    const u=DB.users.find(x=>x.id===r.requesterId)||{name:'?',dept:r.dept};
+    return `<tr>
+      <td><div class="who"><div class="avatar ${deptClass(r.dept)}">${initials(u.name)}</div><div class="meta"><b>${u.name}</b><small>${r.createdAt.split(' ')[0]}</small></div></div></td>
+      <td><span class="badge ${r.dept==='NOC'?'noc':'guardia'}">${r.dept}</span></td>
+      <td>${TYPE_ICO[r.type]} ${TYPE_LABEL[r.type]}</td>
+      <td style="white-space:normal;max-width:280px">${detailSummary(r)}${(r.motivo||r.motivoVac||r.motivoPerm)?`<br><small style="color:var(--muted-2)">${esc((r.motivo||r.motivoVac||r.motivoPerm).slice(0,80))}</small>`:''}</td>
+      <td>${r.createdAt}</td>
+      <td>${r.resolvedAt?r.resolvedAt:'<span style="color:var(--muted-2)">—</span>'}</td>
+      <td><span class="badge ${r.status}"><span class="bdot"></span>${r.status}</span></td>
+    </tr>`;
+  }).join('') : emptyRow(7,'No hay solicitudes con los filtros aplicados.');
+}
+
+// Devuelve las fechas relevantes de una solicitud para el filtro por rango
+function relevantDates(r){
+  if(r.type==='vacaciones') return [r.fechaInicio, r.fechaFin].filter(Boolean);
+  if(r.type==='permiso') return [r.fechaPermiso].filter(Boolean);
+  if(r.type==='cambio_turno') return [r.fechaOrigen, r.fechaDestino].filter(Boolean);
+  // Fallback: usar fecha de creación (sin hora)
+  if(r.createdAt) return [r.createdAt.split(' ')[0]];
+  return [];
+}
+
+// Aplica un preset de fecha rápida (Hoy / Esta semana / Este mes / Últimos 30 días / Todas)
+function setHistPreset(preset){
+  histPreset = preset;
+  // Actualizar botones activos
+  document.querySelectorAll('#view-historial .seg button[data-preset]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.preset===preset);
+  });
+  const desdeInput = document.getElementById('histFechaDesde');
+  const hastaInput = document.getElementById('histFechaHasta');
+  const today = new Date(); today.setHours(0,0,0,0);
+  const pad = d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+
+  if(preset==='all'){
+    desdeInput.value=''; hastaInput.value='';
+  } else if(preset==='today'){
+    desdeInput.value = pad(today); hastaInput.value = pad(today);
+  } else if(preset==='week'){
+    // Lunes a domingo de esta semana
+    const dow = (today.getDay()+6)%7;
+    const monday = new Date(today); monday.setDate(today.getDate()-dow);
+    const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+    desdeInput.value = pad(monday); hastaInput.value = pad(sunday);
+  } else if(preset==='month'){
+    // Primer y último día del mes actual
+    const first = new Date(today.getFullYear(), today.getMonth(), 1);
+    const last = new Date(today.getFullYear(), today.getMonth()+1, 0);
+    desdeInput.value = pad(first); hastaInput.value = pad(last);
+  } else if(preset==='last30'){
+    // Últimos 30 días contando hoy
+    const start = new Date(today); start.setDate(today.getDate()-29);
+    desdeInput.value = pad(start); hastaInput.value = pad(today);
+  }
+  renderHistorial();
+}
+
+function clearHistFilters(){
+  document.getElementById('histSearch').value='';
+  document.getElementById('histDept').value='';
+  document.getElementById('histStatus').value='';
+  document.getElementById('histType').value='';
+  setHistPreset('all');
+}
+
+/* ===================== ADMIN: USUARIOS ===================== */
+let pwdVisible = false; // controla si las contraseñas se muestran en la tabla
+
+function togglePwdVisibility(){
+  pwdVisible = !pwdVisible;
+  const btn = document.getElementById('pwdToggleBtn');
+  btn.textContent = pwdVisible ? '🙈 Ocultar contraseñas' : '👁 Mostrar contraseñas';
+  renderUsuarios();
+}
+
+function renderUsuarios(){
+  const df = document.getElementById('userDeptFilter').value;
+  let list = [...DB.users];
+  if(df) list=list.filter(u=>u.dept===df);
+  const stats = document.getElementById('userStats');
+  const admins = DB.users.filter(u=>u.role==='admin').length;
+  const noc = DB.users.filter(u=>u.dept==='NOC').length;
+  const guard = DB.users.filter(u=>u.dept==='Guardias').length;
+  const active = DB.users.filter(u=>u.active).length;
+  stats.innerHTML = `
+    <div class="stat"><div class="label">Total usuarios</div><div class="val">${DB.users.length}</div><div class="sub">${active} activos</div></div>
+    <div class="stat"><div class="label">Administradores</div><div class="val">${admins}</div><div class="sub">Con acceso total</div></div>
+    <div class="stat ok"><div class="label">NOC</div><div class="val">${noc}</div><div class="sub">Personal NOC</div></div>
+    <div class="stat" style="--accent:var(--accent)"><div class="label">Guardias</div><div class="val">${guard}</div><div class="sub">Personal de guardia</div></div>
+  `;
+  const rows=document.getElementById('userRows');
+  rows.innerHTML = list.length? list.map(u=>{
+    const cnt = DB.requests.filter(r=>r.requesterId===u.id).length;
+    const pwdDisplay = pwdVisible
+      ? `<code style="background:var(--bg-2);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:12px;color:var(--text)">${esc(u.password||'')}</code>`
+      : `<span style="color:var(--muted-2);letter-spacing:2px">••••••</span>`;
+    return `<tr>
+      <td><div class="who"><div class="avatar ${deptClass(u.dept)}">${initials(u.name)}</div><div class="meta"><b>${u.name}</b><small>ID: ${u.id}</small></div></div></td>
+      <td><span class="badge ${u.dept==='NOC'?'noc':u.dept==='Guardias'?'guardia':'dept'}">${u.dept}</span></td>
+      <td>${u.role==='admin'?'Administrador':'Usuario'}</td>
+      <td>${u.active?'<span class="badge aprobada"><span class="bdot"></span>Activo</span>':'<span class="badge rechazada"><span class="bdot"></span>Inactivo</span>'}</td>
+      <td>${pwdDisplay}</td>
+      <td>${cnt}</td>
+      <td class="actions">
+        <button class="btn ghost sm" onclick="openUserModal('${u.id}')">Editar</button>
+        <button class="btn ghost sm" onclick="toggleUser('${u.id}')">${u.active?'Desactivar':'Activar'}</button>
+        ${u.role!=='admin'?`<button class="btn danger sm" onclick="deleteUser('${u.id}')">Eliminar</button>`:''}
+      </td>
+    </tr>`;
+  }).join('') : emptyRow(7,'No hay usuarios con el filtro aplicado.');
+}
+
+function openUserModal(id){
+  const u = id? DB.users.find(x=>x.id===id):null;
+  openModal(u?'Editar usuario':'Nuevo usuario',
+    `<div class="form-grid">
+      <div class="field full">
+        <label>Nombre completo <span class="req">*</span></label>
+        <input id="uName" value="${u?esc(u.name):''}" placeholder="Ej. Juan Pérez">
+      </div>
+      <div class="field">
+        <label>Departamento <span class="req">*</span></label>
+        <select id="uDept">
+          <option value="NOC" ${u&&u.dept==='NOC'?'selected':''}>NOC</option>
+          <option value="Guardias" ${u&&u.dept==='Guardias'?'selected':''}>Guardias</option>
+          <option value="Admin" ${u&&u.dept==='Admin'?'selected':''}>Administrador</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Rol</label>
+        <select id="uRole">
+          <option value="user" ${u&&u.role==='user'?'selected':''}>Usuario</option>
+          <option value="admin" ${u&&u.role==='admin'?'selected':''}>Administrador</option>
+        </select>
+      </div>
+      <div class="field full">
+        <label>Contraseña <span class="req">*</span></label>
+        <div class="pwd-field-wrap">
+          <input type="text" id="uPassword" value="${u?esc(u.password||''):''}" placeholder="Ej. miClave123" required>
+          <button type="button" class="pwd-toggle" onclick="toggleModalPwd(this, 'uPassword')" title="Mostrar/ocultar">👁</button>
+        </div>
+        <small style="color:var(--muted-2);font-size:11px;margin-top:4px">La contraseña se almacena de forma segura en Firebase.</small>
+      </div>
+      <div class="field full">
+        <label>Estado</label>
+        <select id="uActive">
+          <option value="true" ${!u||u.active?'selected':''}>Activo</option>
+          <option value="false" ${u&&!u.active?'selected':''}>Inactivo</option>
+        </select>
+      </div>
+    </div>`,
+    [
+      {label:'Cancelar',cls:'ghost',onclick:closeModal},
+      {label:u?'Guardar':'Crear',cls:'',onclick:()=>{
+        const name=document.getElementById('uName').value.trim();
+        if(!name){toast('El nombre es obligatorio','err');return;}
+        const dept=document.getElementById('uDept').value;
+        const role=document.getElementById('uRole').value;
+        const active=document.getElementById('uActive').value==='true';
+        const password=document.getElementById('uPassword').value.trim();
+        if(!password){toast('La contraseña es obligatoria','err');return;}
+        if(u){u.name=name;u.dept=dept;u.role=role;u.active=active;u.password=password;}
+        else{DB.users.push({id:uid('u'),name,dept,role,active,password});}
+        save();closeModal();toast(u?'Usuario actualizado':'Usuario creado','ok');renderUsuarios();
+      }}
+    ]
+  );
+}
+
+function toggleModalPwd(btn, inputId){
+  const input = document.getElementById(inputId);
+  if(!input) return;
+  if(input.type === 'text'){
+    input.type = 'password';
+    btn.textContent = '👁';
+  } else {
+    input.type = 'text';
+    btn.textContent = '🙈';
+  }
+}
+
+function toggleUser(id){
+  const u=DB.users.find(x=>x.id===id); if(!u) return;
+  u.active=!u.active; save(); toast('Usuario '+(u.active?'activado':'desactivado'),'ok'); renderUsuarios();
+}
+function deleteUser(id){
+  const u=DB.users.find(x=>x.id===id); if(!u) return;
+  const cnt = DB.requests.filter(r=>r.requesterId===id).length;
+  openModal('Eliminar usuario',
+    `<p>¿Eliminar a <b>${u.name}</b>?</p>${cnt?`<p style="color:var(--warning);margin-top:8px;font-size:12.5px">⚠️ Tiene ${cnt} solicitud(es) asociada(s) que se conservarán pero aparecerán sin nombre.</p>`:''}`,
+    [
+      {label:'Cancelar',cls:'ghost',onclick:closeModal},
+      {label:'Eliminar',cls:'danger',onclick:()=>{DB.users=DB.users.filter(x=>x.id!==id);save();closeModal();toast('Usuario eliminado','ok');renderUsuarios();}}
+    ]
+  );
+}
+
+/* ===================== USER: NUEVA SOLICITUD ===================== */
+function selectType(t){
+  currentType=t;
+  document.querySelectorAll('#typeRow .radio-opt').forEach(el=>el.classList.toggle('selected',el.dataset.type===t));
+  ['cambio_turno','vacaciones','permiso'].forEach(k=>{
+    const box=document.getElementById('fields-'+k);
+    box.style.display = k===t?'grid':'none';
+    box.querySelectorAll('[required]').forEach(f=> f.required = (k===t));
+  });
+  // auto-calc días vacaciones
+  if(t==='vacaciones'){
+    const fi=document.querySelector('[name=fechaInicio]');
+    const ff=document.querySelector('[name=fechaFin]');
+    const upd=()=>{ if(fi.value&&ff.value) document.getElementById('diasVac').value=diffDays(fi.value,ff.value)+' día(s)'; };
+    fi.onchange=upd; ff.onchange=upd;
+  }
+}
+
+function populateContraparte(){
+  const sel=document.getElementById('contraparteSel');
+  if(!sel) return;
+  const me = session? DB.users.find(u=>u.id===session.userId):null;
+  const peers = DB.users.filter(u=>u.dept===(me?me.dept:'') && u.id!==session.userId && u.role!=='admin' && u.active);
+  sel.innerHTML='<option value="">Selecciona compañero…</option>'+peers.map(u=>`<option value="${u.id}">${u.name} · ${u.dept}</option>`).join('');
+}
+
+// Extrae el rango horario de un string de turno (ej: "Noche (00:00 - 07:00)" -> "00:00-07:00")
+function extractTimeRange(str){
+  const m = (str||'').match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
+  return m ? `${m[1]}-${m[2]}` : null;
+}
+
+// Devuelve los turnos del dropdown que el usuario realmente tiene en su horario
+function getAvailableShiftsForUser(userId){
+  const sch = SCHEDULE[userId];
+  if(!sch) return [];
+  const u = DB.users.find(x=>x.id===userId);
+  const dept = u? u.dept : 'NOC';
+  const allShifts = SHIFTS[dept] || [];
+  // Extraer los rangos que el usuario tiene en su horario
+  const userRanges = new Set();
+  Object.values(sch).forEach(segs => {
+    segs.forEach(seg => {
+      const r = extractTimeRange(seg);
+      if(r) userRanges.add(r);
+    });
+  });
+  // Filtrar los turnos del dropdown cuyo rango coincide con alguno del usuario
+  return allShifts.filter(shift => {
+    const r = extractTimeRange(shift);
+    return r && userRanges.has(r);
+  });
+}
+
+function populateShifts(){
+  const me = session? DB.users.find(u=>u.id===session.userId):null;
+  const dept = me? me.dept : 'NOC';
+  const allShifts = SHIFTS[dept] || SHIFTS.NOC;
+  // Ambos dropdowns (origen y destino) muestran todos los turnos del departamento,
+  // basados en el horario del calendario.
+  const fill = (sel)=>{
+    if(!sel) return;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Selecciona…</option>' + allShifts.map(s=>`<option>${s}</option>`).join('');
+    if(cur) sel.value = cur;
+  };
+  fill(document.getElementById('turnoOrigenSel'));
+  fill(document.getElementById('turnoDestinoSel'));
+}
+
+function submitRequest(e){
+  e.preventDefault();
+  const form=e.target;
+  const fd=new FormData(form);
+  const me=DB.users.find(u=>u.id===session.userId);
+  if(!me){toast('Sesión inválida','err');return;}
+  const r={id:uid('r'),type:currentType,requesterId:me.id,dept:me.dept,status:'pendiente',createdAt:nowStr()};
+  if(currentType==='cambio_turno'){
+    r.fechaOrigen=fd.get('fechaOrigen'); r.turnoOrigen=fd.get('turnoOrigen');
+    r.fechaDestino=fd.get('fechaDestino'); r.turnoDestino=fd.get('turnoDestino');
+    r.contraparte=fd.get('contraparte'); r.motivo=fd.get('motivo');
+  } else if(currentType==='vacaciones'){
+    r.fechaInicio=fd.get('fechaInicio'); r.fechaFin=fd.get('fechaFin'); r.motivoVac=fd.get('motivoVac');
+  } else if(currentType==='permiso'){
+    r.fechaPermiso=fd.get('fechaPermiso'); r.duracionPermiso=fd.get('duracionPermiso'); r.motivoPerm=fd.get('motivoPerm');
+  }
+  DB.requests.push(r); save();
+  toast('Solicitud enviada correctamente','ok');
+  form.reset(); selectType(currentType); populateContraparte(); populateShifts();
+  go('mias');
+}
+
+/* ===================== EDITAR / ELIMINAR SOLICITUDES (PROPIETARIO) ===================== */
+function canEdit(r){ return r && r.requesterId===session.userId && r.status!=='aprobada'; }
+
+function deleteRequest(id){
+  const r = DB.requests.find(x=>x.id===id);
+  if(!r) return;
+  if(!canEdit(r)){ toast('No se puede eliminar: la solicitud ya está aprobada','err'); return; }
+  openModal('Eliminar solicitud',
+    `<p>¿Seguro que deseas eliminar tu solicitud de <b>${TYPE_LABEL[r.type]}</b> creada el ${r.createdAt}?</p>
+     <p style="color:var(--muted);font-size:12.5px;margin-top:8px">Esta acción no se puede deshacer.</p>`,
+    [
+      {label:'Cancelar',cls:'ghost',onclick:closeModal},
+      {label:'Eliminar',cls:'danger',onclick:()=>{
+        DB.requests = DB.requests.filter(x=>x.id!==id);
+        save(); closeModal(); toast('Solicitud eliminada','ok'); renderMyRequests();
+      }}
+    ]
+  );
+}
+
+function editRequest(id){
+  const r = DB.requests.find(x=>x.id===id);
+  if(!r) return;
+  if(!canEdit(r)){ toast('No se puede editar: la solicitud ya está aprobada','err'); return; }
+
+  // Construir el formulario según el tipo, precargado con los datos existentes
+  const me = DB.users.find(u=>u.id===session.userId);
+  const shifts = SHIFTS[me.dept] || SHIFTS.NOC;
+  const peers = DB.users.filter(u=>u.dept===me.dept && u.id!==session.userId && u.role!=='admin' && u.active);
+
+  let fieldsHtml = '';
+  if(r.type==='cambio_turno'){
+    fieldsHtml = `
+      <div class="form-grid">
+        <div class="field"><label>Fecha origen <span class="req">*</span></label><input type="date" id="e_fechaOrigen" value="${r.fechaOrigen||''}"></div>
+        <div class="field"><label>Turno origen <span class="req">*</span></label>
+          <select id="e_turnoOrigen">
+            <option value="">Selecciona…</option>
+            ${shifts.map(s=>`<option ${s===r.turnoOrigen?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field"><label>Fecha destino <span class="req">*</span></label><input type="date" id="e_fechaDestino" value="${r.fechaDestino||''}"></div>
+        <div class="field"><label>Turno destino <span class="req">*</span></label>
+          <select id="e_turnoDestino">
+            <option value="">Selecciona…</option>
+            ${shifts.map(s=>`<option ${s===r.turnoDestino?'selected':''}>${s}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field full"><label>Intercambio con (contraparte) <span class="req">*</span></label>
+          <select id="e_contraparte">
+            <option value="">Selecciona compañero…</option>
+            ${peers.map(u=>`<option value="${u.id}" ${u.id===r.contraparte?'selected':''}>${u.name} · ${u.dept}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field full"><label>Motivo <span class="req">*</span></label>
+          <textarea id="e_motivo" placeholder="Ej. Cita médica, compromiso personal, etc.">${esc(r.motivo||'')}</textarea>
+        </div>
+      </div>`;
+  } else if(r.type==='vacaciones'){
+    fieldsHtml = `
+      <div class="form-grid">
+        <div class="field"><label>Fecha de inicio <span class="req">*</span></label><input type="date" id="e_fechaInicio" value="${r.fechaInicio||''}"></div>
+        <div class="field"><label>Fecha de regreso <span class="req">*</span></label><input type="date" id="e_fechaFin" value="${r.fechaFin||''}"></div>
+        <div class="field full"><label>Motivo / observaciones</label><textarea id="e_motivoVac" placeholder="Ej. Vacaciones programadas…">${esc(r.motivoVac||'')}</textarea></div>
+      </div>`;
+  } else if(r.type==='permiso'){
+    fieldsHtml = `
+      <div class="form-grid">
+        <div class="field"><label>Fecha del permiso <span class="req">*</span></label><input type="date" id="e_fechaPermiso" value="${r.fechaPermiso||''}"></div>
+        <div class="field"><label>Duración <span class="req">*</span></label>
+          <select id="e_duracionPermiso">
+            <option value="">Selecciona…</option>
+            ${['2 horas','4 horas','Medio día (mañana)','Medio día (tarde)','Día completo'].map(d=>`<option ${d===r.duracionPermiso?'selected':''}>${d}</option>`).join('')}
+          </select>
+        </div>
+        <div class="field full"><label>Motivo <span class="req">*</span></label><textarea id="e_motivoPerm" placeholder="Ej. Cita médica, trámite bancario, etc.">${esc(r.motivoPerm||'')}</textarea></div>
+      </div>`;
+  }
+
+  openModal(`Editar solicitud · ${TYPE_LABEL[r.type]}`,
+    `<p style="color:var(--muted);margin-bottom:14px;font-size:12.5px">Estado actual: <b style="color:${r.status==='pendiente'?'var(--warning)':r.status==='rechazada'?'var(--danger)':'var(--success)'}">${r.status}</b>. Al guardar, la solicitud vuelve a estado <b>pendiente</b> y el administrador deberá revisarla de nuevo.</p>
+     ${r.status==='rechazada'?'<p style="color:var(--muted);font-size:12px;margin-bottom:14px">Comentario previo del admin: '+(r.comments?('«'+esc(r.comments)+'»'):'—')+'</p>':''}
+     ${fieldsHtml}`,
+    [
+      {label:'Cancelar',cls:'ghost',onclick:closeModal},
+      {label:'Guardar cambios',cls:'success',onclick:()=>{
+        // Validar y guardar
+        if(r.type==='cambio_turno'){
+          const fo=val('e_fechaOrigen'), to=val('e_turnoOrigen'), fd=val('e_fechaDestino'), td=val('e_turnoDestino'), cp=val('e_contraparte'), mt=val('e_motivo');
+          if(!fo||!to||!fd||!td||!cp||!mt){toast('Completa todos los campos obligatorios','err');return;}
+          r.fechaOrigen=fo; r.turnoOrigen=to; r.fechaDestino=fd; r.turnoDestino=td; r.contraparte=cp; r.motivo=mt;
+        } else if(r.type==='vacaciones'){
+          const fi=val('e_fechaInicio'), ff=val('e_fechaFin');
+          if(!fi||!ff){toast('Completa las fechas','err');return;}
+          r.fechaInicio=fi; r.fechaFin=ff; r.motivoVac=val('e_motivoVac');
+        } else if(r.type==='permiso'){
+          const fp=val('e_fechaPermiso'), dp=val('e_duracionPermiso'), mp=val('e_motivoPerm');
+          if(!fp||!dp||!mp){toast('Completa todos los campos obligatorios','err');return;}
+          r.fechaPermiso=fp; r.duracionPermiso=dp; r.motivoPerm=mp;
+        }
+        // Vuelve a pendiente, limpia resolución previa
+        r.status='pendiente';
+        r.resolvedAt=null; r.resolvedBy=null; r.comments='';
+        r.updatedAt=nowStr();
+        save(); closeModal(); toast('Solicitud actualizada','ok'); renderMyRequests();
+      }}
+    ]
+  );
+}
+
+function val(id){ const el=document.getElementById(id); return el? el.value.trim() : ''; }
+
+/* ===================== USER: MIS SOLICITUDES ===================== */
+function setMyFilter(f){
+  myFilter=f;
+  document.querySelectorAll('#view-mias .seg button').forEach(b=>b.classList.toggle('active',b.dataset.f===f));
+  renderMyRequests();
+}
+function renderMyRequests(){
+  const me=DB.users.find(u=>u.id===session.userId);
+  let list = DB.requests.filter(r=>r.requesterId===session.userId);
+  const pend=list.filter(r=>r.status==='pendiente').length;
+  const ok=list.filter(r=>r.status==='aprobada').length;
+  const bad=list.filter(r=>r.status==='rechazada').length;
+  document.getElementById('myStats').innerHTML=`
+    <div class="stat warn"><div class="label">Pendientes</div><div class="val">${pend}</div></div>
+    <div class="stat ok"><div class="label">Aprobadas</div><div class="val">${ok}</div></div>
+    <div class="stat bad"><div class="label">Rechazadas</div><div class="val">${bad}</div></div>
+    <div class="stat"><div class="label">Total</div><div class="val">${list.length}</div></div>
+  `;
+  if(myFilter!=='todas') list=list.filter(r=>r.status===myFilter);
+  list.sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
+  const body=document.getElementById('myReqBody');
+  if(list.length===0){
+    body.innerHTML=`<div class="empty"><div class="ico">🗂️</div>No tienes solicitudes en este filtro.</div>`;
+    return;
+  }
+  body.innerHTML=`<div class="req-list">${list.map(r=>{
+    const card=renderReqCard(r);
+    // For user view, no admin actions
+    return card;
+  }).join('')}</div>`;
+}
+
+/* ===================== MODAL & TOAST ===================== */
+function openModal(title,bodyHtml,buttons){
+  document.getElementById('modalTitle').textContent=title;
+  document.getElementById('modalBody').innerHTML=bodyHtml;
+  const foot=document.getElementById('modalFoot');
+  foot.innerHTML='';
+  (buttons||[{label:'Cerrar',cls:'ghost',onclick:closeModal}]).forEach(b=>{
+    const btn=document.createElement('button');
+    btn.className='btn '+(b.cls||''); btn.textContent=b.label; btn.onclick=b.onclick;
+    foot.appendChild(btn);
+  });
+  document.getElementById('modal').classList.add('show');
+}
+function closeModal(){ document.getElementById('modal').classList.remove('show'); }
+document.getElementById('modal').addEventListener('click',e=>{ if(e.target.id==='modal') closeModal(); });
+
+function toast(msg,type){
+  const t=document.createElement('div');
+  t.className='toast '+(type||''); t.textContent=msg;
+  document.getElementById('toast').appendChild(t);
+  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(20px)';setTimeout(()=>t.remove(),250);},3000);
+}
+
+/* ===================== TEMA CLARO/OSCURO ===================== */
+function getStoredTheme(){
+  try{ return localStorage.getItem('noc_guardias_theme') || 'dark'; }catch(e){ return 'dark'; }
+}
+function applyTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  const btn = document.getElementById('themeToggle');
+  if(btn) btn.textContent = (t==='light' ? '☀️' : '🌙');
+  try{ localStorage.setItem('noc_guardias_theme', t); }catch(e){}
+}
+function toggleTheme(){
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+  applyTheme(cur==='light' ? 'dark' : 'light');
+}
+
+/* ===================== PWA ===================== */
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredPrompt = e;
+  const btn = document.getElementById('pwaInstall');
+  if(btn) btn.classList.add('show');
+});
+document.getElementById('pwaInstall')?.addEventListener('click', async ()=>{
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const {outcome} = await deferredPrompt.userChoice;
+  if(outcome==='accepted'){
+    document.getElementById('pwaInstall').classList.remove('show');
+  }
+  deferredPrompt = null;
+});
+window.addEventListener('appinstalled', ()=>{
+  document.getElementById('pwaInstall')?.classList.remove('show');
+});
+// Registrar service worker para uso offline
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(e=>{
+    console.warn('Service Worker no registrado:', e);
+  });
+}
+
+/* ===================== INIT ===================== */
+window.addEventListener('DOMContentLoaded', async ()=>{
+  applyTheme(getStoredTheme());
+  // Cargar BD desde Firebase (o localStorage como respaldo)
+  await loadDB();
+  // Restaurar sesión si existe
+  const s = sessionStorage.getItem('session');
+  if(s){ try{ const p=JSON.parse(s); if(p&&p.role&&p.userId){ login(p.role,p.userId); } }catch(e){} }
+});
+</script>
+</body>
+</html>
