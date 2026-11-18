@@ -3865,6 +3865,11 @@ css.textContent = `
 .ph-x:hover{background:var(--danger)}
 .ph-plus{position:absolute;top:1px;right:20px;background:rgba(255,255,255,.45);color:#000;border-radius:3px;padding:0 5px;font-size:11px;font-weight:700;line-height:14px;cursor:pointer}
 .ph-plus:hover{background:#fff}
+.ph-add{outline:2px solid #fff;outline-offset:-2px;font-weight:700}
+.ph-rem{background:transparent!important;border:1px dashed var(--muted-2);color:var(--muted)!important;text-decoration:line-through;opacity:.75}
+.ph-exp{margin-top:12px;width:100%}
+.ph-exp .cal-table-wrap{max-height:460px;overflow:auto}
+.ph-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 @media(max-width:700px){.ph-form{grid-template-columns:1fr}}
 `;
 document.head.appendChild(css);
@@ -3912,17 +3917,20 @@ const MAX_WEEKS = 26, MAX_H = 12;
 const baseGetSchedule = window.getSchedule;
 const baseApprove = window.approveCalendarDraft;
 const baseDetail = window.detailSummary;
+const baseCard = window.renderReqCard, baseResolve = window.resolveReq, baseInit = window.initApp, baseLogout = window.logout;
 
 /* ---------- Horario oficial POR SEMANA ----------
    Si hay una propuesta aprobada para esa semana, manda sobre el horario base. */
-function weekOverride(userId, ws){
+const rk = r => r.resolvedMs || Date.parse((r.resolvedAt||'').replace(' ','T')) || 0;
+function weekOverride(userId, ws, excludeId){
   let best = null;
   DB.requests.forEach(r=>{
-    if(r.type==='calendario' && r.status==='aprobada' && r.weekStart===ws && r.schedules && r.schedules[userId]){
-      if(!best || (r.resolvedAt||'') >= (best.resolvedAt||'')) best = r;
+    if(r.id!==excludeId && r.type==='calendario' && r.status==='aprobada' && r.weekStart===ws){
+      const sch = r.applied || r.schedules;
+      if(sch && sch[userId] && (!best || rk(r) >= rk(best))) best = r;
     }
   });
-  return best ? best.schedules[userId] : null;
+  return best ? (best.applied || best.schedules)[userId] : null;
 }
 window.getSchedule = function(userId, ws){
   if(!ws){
@@ -4104,6 +4112,7 @@ window.sendDraft = function(){
 
   const ws = wsOf(E.off), we = addDaysStr(ws,6);
   const schedules = editorGridToSchedules(E.grid, list);
+  const base = editorGridToSchedules(E.orig, list);
   const summary = list.map(u=>{
     const a = weekHours(E.orig,u.id), b = weekHours(E.grid,u.id), d = b-a;
     return `<li><b>${shortName(u.name)}</b>: ${a}h → ${b}h ${d? `(${d>0?'+':''}${d}h)`:'(sin cambio de horas)'}</li>`;
@@ -4119,11 +4128,11 @@ window.sendDraft = function(){
         const motivo = tipo + (det?': '+det:'');
         let r = E.editingId && DB.requests.find(x=>x.id===E.editingId);
         if(r){
-          Object.assign(r,{schedules,weekStart:ws,motivoTipo:tipo,motivo,status:'pendiente',updatedAt:nowStr(),resolvedAt:null,resolvedBy:null,comments:''});
-          delete r.schedule;
+          Object.assign(r,{schedules,base,weekStart:ws,motivoTipo:tipo,motivo,status:'pendiente',updatedAt:nowStr(),resolvedAt:null,resolvedBy:null,comments:''});
+          delete r.schedule; delete r.applied; delete r.resolvedMs;
         } else {
           r = {id:uid('r'),type:'calendario',requesterId:session.userId,dept:E.dept,status:'pendiente',
-               createdAt:nowStr(),weekStart:ws,schedules,motivoTipo:tipo,motivo};
+               createdAt:nowStr(),weekStart:ws,schedules,base,motivoTipo:tipo,motivo};
           DB.requests.push(r);
         }
         saveRequest(r);
@@ -4186,6 +4195,190 @@ window.detailSummary = function(r){
     return `Semana del ${fmtDayLabel(r.weekStart)} al ${fmtDayLabel(addDaysStr(r.weekStart,6))}${r.motivoTipo?' · '+esc(r.motivoTipo):''}`;
   return baseDetail(r);
 };
+
+
+/* =====================================================================
+   SINCRONIZACIÓN, TARJETAS EN FORMATO CALENDARIO Y APROBACIÓN CON CHOQUES
+   ===================================================================== */
+const kc = a => a.slice().sort().join(',');
+const deptUsersOf = dept => DB.users.filter(u=>u.dept===dept && u.role!=='admin' && u.active);
+function gridFrom(sch, list){
+  const g = DAYS.map(()=>Array.from({length:24},()=>[]));
+  list.forEach(u=>{ const s=(sch&&sch[u.id])||{};
+    DAYS.forEach((d,i)=>scheduleHoursForDay(s,d).forEach(h=>{ if(!g[i][h].includes(u.id)) g[i][h].push(u.id); })); });
+  return g;
+}
+function officialGrid(list, ws, excludeId){
+  const sch = {};
+  list.forEach(u=>{ sch[u.id] = weekOverride(u.id, ws, excludeId) || baseGetSchedule(u.id); });
+  return gridFrom(sch, list);
+}
+function propAndBase(r){
+  const list = deptUsersOf(r.dept);
+  return {list, prop:gridFrom(r.schedules,list), base:r.base?gridFrom(r.base,list):officialGrid(list,r.weekStart,r.id)};
+}
+function changedCells(r){
+  const {prop,base} = propAndBase(r), out = {};
+  for(let d=0;d<7;d++) for(let h=0;h<24;h++) if(kc(prop[d][h])!==kc(base[d][h])) out[d+'-'+h]=kc(prop[d][h]);
+  return out;
+}
+/* Choque = otra propuesta PENDIENTE de la misma semana que cambia la MISMA franja
+   (mismo día y hora) con un resultado distinto. Días distintos no chocan. */
+function conflictsOf(r){
+  if(!r.weekStart || !r.schedules) return [];
+  const mine = changedCells(r), res = [];
+  DB.requests.filter(o=>o.id!==r.id && o.type==='calendario' && o.status==='pendiente'
+      && o.dept===r.dept && o.weekStart===r.weekStart && o.schedules).forEach(o=>{
+    const th = changedCells(o), days = new Set(); let n = 0;
+    Object.keys(mine).forEach(k=>{ if(k in th && th[k]!==mine[k]){ days.add(+k.split('-')[0]); n++; } });
+    if(n) res.push({o, n, days:[...days].sort((a,b)=>a-b).map(d=>DAYS[d])});
+  });
+  return res;
+}
+
+/* Aprueba APLICANDO SOLO LOS CAMBIOS de esta propuesta sobre el calendario oficial vigente,
+   así dos propuestas de días distintos se suman en lugar de pisarse. */
+function applyApprove(r, rejectIds){
+  const list = deptUsersOf(r.dept), ws = r.weekStart;
+  const cur = officialGrid(list, ws, r.id);
+  const prop = gridFrom(r.schedules, list);
+  const base = r.base ? gridFrom(r.base, list) : cur;
+  for(let d=0;d<7;d++) for(let h=0;h<24;h++) if(kc(prop[d][h])!==kc(base[d][h])) cur[d][h]=prop[d][h].slice();
+  r.applied = editorGridToSchedules(cur, list);
+  const t = nowStr();
+  Object.assign(r,{status:'aprobada',resolvedAt:t,resolvedMs:Date.now(),resolvedBy:session.userId});
+  saveRequest(r);
+  (rejectIds||[]).forEach(id=>{
+    const o = DB.requests.find(x=>x.id===id); if(!o) return;
+    Object.assign(o,{status:'rechazada',resolvedAt:t,resolvedMs:Date.now(),resolvedBy:session.userId,
+      comments:'Rechazada: chocaba con otra propuesta aprobada para la misma semana.'});
+    saveRequest(o);
+  });
+  toast(`Aprobada. El calendario oficial de la semana del ${fmtDayLabel(ws)} se actualizó para todos.`,'ok');
+  refreshActive();
+}
+window.resolveReq = function(id, status){
+  const r = DB.requests.find(x=>x.id===id);
+  if(!r || r.type!=='calendario' || !r.weekStart || status!=='aprobada') return baseResolve(id, status);
+  const conf = conflictsOf(r);
+  if(!conf.length) return applyApprove(r);
+  const items = conf.map(c=>`<li style="margin-bottom:6px"><b>${esc(reqUserName(c.o))}</b>${c.o.motivo?' · '+esc(c.o.motivo):''}<br><span style="color:var(--danger)">Choca en: ${c.days.join(', ')} (${c.n} franja(s) de 1 h)</span></li>`).join('');
+  openModal('⚠️ Dos propuestas chocan',
+    `<p style="margin-bottom:8px">La propuesta de <b>${esc(reqUserName(r))}</b> modifica las mismas franjas que otra propuesta pendiente de la misma semana:</p>
+     <ul style="margin:0 0 12px 18px;font-size:12.5px;line-height:1.5">${items}</ul>
+     <p style="color:var(--muted);font-size:12.5px">Define cuál horario se queda. Puedes abrir cada solicitud con "Ver calendario" para compararlas. Los días que no chocan se conservan.</p>`,
+    [{label:'Cancelar',cls:'ghost',onclick:closeModal},
+     {label:'Aprobar solo esta',cls:'secondary',onclick:()=>{closeModal();applyApprove(r);}},
+     {label:'Aprobar esta y rechazar la otra',cls:'danger',onclick:()=>{closeModal();applyApprove(r,conf.map(c=>c.o.id));}}]);
+};
+
+/* ---------- Tarjeta en formato calendario (expandible) ---------- */
+const OPEN = new Set();
+function calHtml(r){
+  if(!r.weekStart || !r.schedules) return '<div class="empty">Propuesta antigua sin semana definida: no tiene calendario para mostrar.</div>';
+  const {list,prop,base} = propAndBase(r);
+  const dates = getWeekDates(Math.round((dateFromStr(r.weekStart)-dateFromStr(wsOf(0)))/(7*86400000)));
+  const head = dates.map((d,i)=>`<th class="day-col"><span class="day-name">${DAYS[i]}</span><span class="day-date">${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}</span></th>`).join('');
+  const rows = [];
+  for(let h=0;h<24;h++){
+    const tds = DAYS.map((_,i)=>{
+      const cur = prop[i][h], old = base[i][h];
+      const blocks = cur.map(id=>{ const u=DB.users.find(x=>x.id===id); if(!u) return '';
+        return `<div class="cal-cell-block ${old.includes(id)?'':'ph-add'}" style="background:${getUserColor(u)}"><span class="ccb-name">${shortName(u.name)}</span></div>`; }).join('')
+        + old.filter(id=>!cur.includes(id)).map(id=>{ const u=DB.users.find(x=>x.id===id); if(!u) return '';
+        return `<div class="cal-cell-block ph-rem"><span class="ccb-name">${shortName(u.name)}</span></div>`; }).join('');
+      return `<td>${blocks||'<div class="cal-cell-empty">·</div>'}</td>`;
+    }).join('');
+    rows.push(`<tr><th>${formatHourRange(String(h).padStart(2,'0')+':00')}</th>${tds}</tr>`);
+  }
+  const legend = list.map(u=>`<span class="lg"><i style="background:${getUserColor(u)}"></i>${u.name}</span>`).join('')
+    + `<span class="lg"><i style="background:var(--muted-2);outline:2px solid #fff"></i>Hora nueva</span><span class="lg"><i style="border:1px dashed var(--muted-2)"></i>Hora que se quita</span>`;
+  return `<div class="legend-schedule">${legend}</div><div class="cal-table-wrap"><table class="cal-sched"><thead><tr><th class="time-col">Franja horaria</th>${head}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+}
+window.renderReqCard = function(r){
+  if(r.type!=='calendario') return baseCard(r);
+  const u = DB.users.find(x=>x.id===r.requesterId)||{name:'?'};
+  const open = OPEN.has(r.id), adm = session.role==='admin', mine = r.requesterId===session.userId;
+  const ws = r.weekStart;
+  const range = ws ? `Semana del ${fmtDayLabel(ws)} al ${fmtDayLabel(addDaysStr(ws,6))}` : 'Propuesta antigua (sin semana definida)';
+  let chips = '';
+  if(ws && r.schedules){
+    const {list,prop,base} = propAndBase(r);
+    const cnt = (g,id)=>g.reduce((a,day)=>a+day.filter(c=>c.includes(id)).length,0);
+    chips = list.map(x=>{ const d=cnt(prop,x.id)-cnt(base,x.id); return d?`<span class="badge dept">${shortName(x.name)} ${d>0?'+':''}${d}h</span>`:''; }).join('');
+  }
+  const conf = (adm && r.status==='pendiente') ? conflictsOf(r) : [];
+  const confHtml = conf.length ? `<div class="cal-alert" style="background:var(--danger-soft);border-left-color:var(--danger);margin-top:10px">⚠️ <b>Choca</b> con la propuesta de ${conf.map(c=>`<b>${esc(reqUserName(c.o))}</b> (${c.days.join(', ')})`).join('; ')}. Al aprobar tendrás que elegir cuál se queda.</div>` : '';
+  const btnTog = `<button class="btn secondary sm" onclick="PH.tog('${r.id}')">${open?'▴ Ocultar calendario':'▾ Ver calendario'}</button>`;
+  let acts = btnTog;
+  if(adm){
+    if(r.status==='pendiente') acts += `<button class="btn success sm" onclick="resolveReq('${r.id}','aprobada')">✓ Aprobar</button><button class="btn danger sm" onclick="resolveReq('${r.id}','rechazada')">✕ Rechazar</button>`;
+    acts += `<button class="btn sm" onclick="editRequest('${r.id}')">✎ Editar</button><button class="btn danger sm" onclick="deleteRequest('${r.id}')">🗑 Eliminar</button>`;
+  } else if(mine && r.status!=='aprobada'){
+    acts += `<button class="btn sm" onclick="editRequest('${r.id}')">✎ Editar</button><button class="btn danger sm" onclick="deleteRequest('${r.id}')">🗑 Eliminar</button>`;
+  }
+  if(r.status==='aprobada' && ws) acts += `<button class="btn ghost sm" onclick="PH.goWeek('${ws}')">📅 Ver en horario oficial</button>`;
+  const resol = r.resolvedAt ? `<div class="req-resol">Resuelto el ${r.resolvedAt} por ${resolverName(r.resolvedBy)}${r.comments?' · '+esc(r.comments):''}</div>` : '';
+  return `<div class="req-card" style="flex-wrap:wrap">
+    <div class="req-ico" style="background:rgba(59,130,246,.15);color:#60a5fa">🗓️</div>
+    <div class="req-body">
+      <div class="req-top">
+        <div><div class="ttl">Propuesta de horario <small>· ${esc(u.name)} · <span class="badge dept">${r.dept}</span></small></div>
+        <div style="color:var(--muted-2);font-size:11.5px">Enviada el ${r.createdAt}</div></div>
+        <span class="badge ${r.status}"><span class="bdot"></span>${r.status}</span>
+      </div>
+      <div class="req-meta"><span>📅 <b style="color:var(--text)">${range}</b></span>${r.motivoTipo?`<span>🏷️ ${esc(r.motivoTipo)}</span>`:''}</div>
+      ${chips?`<div class="ph-chips">${chips}</div>`:''}
+      ${r.motivo?`<div class="req-reason">"${esc(r.motivo)}"</div>`:''}
+      ${confHtml}${resol}
+      <div class="req-actions" style="flex-wrap:wrap">${acts}</div>
+      ${open?`<div class="ph-exp">${calHtml(r)}</div>`:''}
+    </div></div>`;
+};
+PH.tog = id => { OPEN.has(id)?OPEN.delete(id):OPEN.add(id); refreshActive(); };
+PH.goWeek = ws => {
+  calWeekOffset = Math.round((dateFromStr(ws)-dateFromStr(wsOf(0)))/(7*86400000));
+  calMode = 'aplicado'; go('horario');
+};
+
+/* ---------- Guardado y sincronización en tiempo real ---------- */
+window.saveRequest = function(r){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(_){}
+  if(!r || !r.id || !useFirebase) return;
+  const {id, ...data} = r;
+  fbdb.collection('requests').doc(id).set(JSON.parse(JSON.stringify(data)))
+    .catch(e=>toast('No se pudo guardar en el servidor ('+(e.code||e.message)+'). Los demás usuarios no verán este cambio.','err'));
+};
+const VIEWS = {resumen:'renderResumen',pendientes:'renderPendientes',horario:'renderHorario',historial:'renderHistorial',usuarios:'renderUsuarios',mias:'renderMyRequests'};
+function refreshActive(){
+  const v = document.querySelector('.view.active');
+  const k = v && v.id.replace('view-','');
+  if(k && VIEWS[k] && session) window[VIEWS[k]]();
+  const tab = document.querySelector('.tab[data-tab="pendientes"]');
+  if(tab){ const n = DB.requests.filter(x=>x.status==='pendiente').length; tab.textContent = '⏳ Pendientes'+(n?' ('+n+')':''); }
+}
+let unsubs = [], syncWarned = false;
+function stopSync(){ unsubs.forEach(f=>{ try{f();}catch(_){} }); unsubs = []; }
+function startSync(){
+  stopSync();
+  if(!useFirebase || !fbdb || !session) return;
+  const fail = name => e=>{ console.warn('Sync '+name, e); if(!syncWarned){ syncWarned=true; toast('No se pudo sincronizar '+name+' ('+(e.code||e.message)+'). Revisa las reglas de Firestore.','err'); } };
+  let first = true;
+  unsubs.push(fbdb.collection('requests').onSnapshot(snap=>{
+    const before = DB.requests.filter(x=>x.status==='pendiente').length;
+    DB.requests = snap.docs.map(d=>({id:d.id,...d.data()}));
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(_){}
+    const now = DB.requests.filter(x=>x.status==='pendiente').length;
+    if(!first && session && session.role==='admin' && now>before) toast('Llegó una nueva solicitud pendiente.','warn');
+    first = false; refreshActive();
+  }, fail('las solicitudes')));
+  unsubs.push(fbdb.collection('users').onSnapshot(snap=>{
+    DB.users = snap.docs.map(d=>({id:d.id,...d.data()}));
+    refreshActive();
+  }, fail('los usuarios')));
+}
+window.initApp = function(){ baseInit.apply(this, arguments); startSync(); };
+window.logout = async function(){ stopSync(); syncWarned = false; return baseLogout.apply(this, arguments); };
 
 })();
 
