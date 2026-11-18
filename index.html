@@ -1695,10 +1695,17 @@ function deptClass(d){ return d==='NOC'?'noc':d==='Guardias'?'guardia':'admin'; 
 function fmtDate(s){ return s? s.replace('T',' '):'—'; }
 function detailSummary(r){
   if(r.type==='calendario'){
-    // Resumen de horas por día para la propuesta de horario
-    const sch = r.schedule || {};
-    const totalH = DAYS.reduce((acc,d)=>acc + (sch[d]||[]).reduce((a,s)=>a+shiftHours(s),0), 0);
-    return `Propuesta semanal · ${totalH}h totales`;
+    if(r.schedules){
+      // Nuevo formato: resumen por usuario
+      const users = Object.keys(r.schedules);
+      const totalChanges = users.length;
+      return `Propuesta para ${totalChanges} técnico(s) del departamento`;
+    }
+    if(r.schedule){
+      const sch = r.schedule;
+      const totalH = DAYS.reduce((acc,d)=>acc + (sch[d]||[]).reduce((a,s)=>a+shiftHours(s),0), 0);
+      return `Propuesta semanal · ${totalH}h totales`;
+    }
   }
   return '—';
 }
@@ -1727,12 +1734,17 @@ function renderReqCard(r){
   const u = DB.users.find(x=>x.id===r.requesterId)||{name:'?',dept:r.dept};
   let detail = '';
   if(r.type==='calendario'){
-    const sch = r.schedule || {};
-    const dayHours = DAYS.map(d=>{
-      const h = (sch[d]||[]).reduce((a,s)=>a+shiftHours(s),0);
-      return h>0 ? `${d.slice(0,3)}: ${h}h` : null;
-    }).filter(Boolean);
-    detail = `<div class="req-meta"><span>📅 Propuesta semanal: <b style="color:var(--text)">${dayHours.join(' · ')||'Sin horas'}</b></span></div>`;
+    if(r.schedules){
+      const numUsers = Object.keys(r.schedules).length;
+      detail = `<div class="req-meta"><span>📅 Propuesta para <b style="color:var(--text)">${numUsers} técnico(s)</b> del departamento</span></div>`;
+    } else if(r.schedule){
+      const sch = r.schedule;
+      const dayHours = DAYS.map(d=>{
+        const h = (sch[d]||[]).reduce((a,s)=>a+shiftHours(s),0);
+        return h>0 ? `${d.slice(0,3)}: ${h}h` : null;
+      }).filter(Boolean);
+      detail = `<div class="req-meta"><span>📅 Propuesta semanal: <b style="color:var(--text)">${dayHours.join(' · ')||'Sin horas'}</b></span></div>`;
+    }
   }
   const reason = r.motivo || r.comments || '';
   const resol = r.resolvedAt ? `<div class="req-resol">Resuelto el ${r.resolvedAt} por ${resolverName(r.resolvedBy)} · ${r.comments?'Comentario: '+r.comments:''}</div>` : '';
@@ -1907,12 +1919,25 @@ function resolveReq(id,status){
 
 // Aprueba un borrador de calendario: reemplaza el schedule oficial del técnico
 function approveCalendarDraft(r){
-  const u = DB.users.find(x=>x.id===r.requesterId);
-  if(!u){ toast('Usuario no encontrado','err'); return; }
-  // Reemplazar el schedule oficial del técnico con el del borrador
-  u.schedule = r.schedule;
-  // Guardar en Firestore
-  saveUser(u);
+  // La propuesta contiene `schedules`: un mapa { userId: { Lunes: [...], ... } }
+  // que reemplaza los horarios oficiales de TODOS los técnicos del departamento.
+  if(!r.schedules){
+    // Compatibilidad con el formato anterior (schedule single-user)
+    const u = DB.users.find(x=>x.id===r.requesterId);
+    if(u){
+      u.schedule = r.schedule;
+      saveUser(u);
+    }
+  } else {
+    // Nuevo formato: aplicar schedules a todos los técnicos del departamento
+    Object.keys(r.schedules).forEach(userId=>{
+      const u = DB.users.find(x=>x.id===userId);
+      if(u){
+        u.schedule = r.schedules[userId];
+        saveUser(u);
+      }
+    });
+  }
   // Marcar la solicitud como aprobada
   r.status = 'aprobada';
   r.resolvedAt = nowStr();
@@ -1920,41 +1945,49 @@ function approveCalendarDraft(r){
   saveRequest(r);
   toast('Propuesta de horario aprobada. El calendario oficial ha sido actualizado.','ok');
   renderPendientes(); renderResumen();
-  // Re-renderizar horario si está activo
   const horView = document.getElementById('view-horario');
   if(horView && horView.classList.contains('active')) renderHorario();
 }
 
 // Detecta choques entre borradores de calendario PENDIENTES (no con el oficial).
-// Devuelve array de conflictos: {otrosUsuario, otrosDia, detalle}
 function detectCalendarConflicts(req){
   const conflicts = [];
-  if(!req || req.type!=='calendario' || !req.schedule) return conflicts;
-  // Buscar OTROS borradores pendientes del mismo departamento
-  const otherDrafts = DB.requests.filter(r=>
-    r.id !== req.id &&
-    r.type === 'calendario' &&
-    r.status === 'pendiente' &&
-    r.dept === req.dept &&
-    r.requesterId !== req.requesterId &&
-    r.schedule
-  );
-  // Para cada día, comparar horas activas
-  DAYS.forEach(day=>{
-    const myHours = scheduleHoursForDay(req.schedule, day);
-    otherDrafts.forEach(other=>{
-      const otherHours = scheduleHoursForDay(other.schedule, day);
-      const overlap = myHours.filter(h => otherHours.includes(h));
-      if(overlap.length > 0){
-        const otherUser = DB.users.find(u=>u.id===other.requesterId);
-        conflicts.push({
-          otrosUsuario: otherUser ? otherUser.name : 'Desconocido',
-          otrosDia: day,
-          detalle: `Horas en conflicto: ${overlap.map(h=>String(h).padStart(2,'0')+':00').join(', ')}`
+  if(!req || req.type!=='calendario') return conflicts;
+  // Si la propuesta usa el nuevo formato (schedules), buscar choques por usuario
+  if(req.schedules){
+    // Buscar otros borradores pendientes del mismo departamento
+    const otherDrafts = DB.requests.filter(r=>
+      r.id !== req.id &&
+      r.type === 'calendario' &&
+      r.status === 'pendiente' &&
+      r.dept === req.dept &&
+      r.requesterId !== req.requesterId &&
+      r.schedules
+    );
+    // Para cada usuario común en ambas propuestas, verificar si hay choque
+    Object.keys(req.schedules).forEach(userId=>{
+      const myUserSchedule = req.schedules[userId];
+      otherDrafts.forEach(other=>{
+        const otherUserSchedule = other.schedules[userId];
+        if(!otherUserSchedule) return;
+        // Comparar hora por hora por día
+        DAYS.forEach(day=>{
+          const myHours = scheduleHoursForDay(myUserSchedule, day);
+          const otherHours = scheduleHoursForDay(otherUserSchedule, day);
+          const overlap = myHours.filter(h => otherHours.includes(h));
+          if(overlap.length > 0 && !JSON.stringify(myUserSchedule[day]||[]).includes(JSON.stringify(otherUserSchedule[day]||[]))){
+            const otherUser = DB.users.find(u=>u.id===other.requesterId);
+            const targetUser = DB.users.find(u=>u.id===userId);
+            conflicts.push({
+              otrosUsuario: otherUser ? otherUser.name : 'Desconocido',
+              otrosDia: day,
+              detalle: `Horas en conflicto para ${targetUser ? targetUser.name : userId}: ${overlap.map(h=>String(h).padStart(2,'0')+':00').join(', ')}`
+            });
+          }
         });
-      }
+      });
     });
-  });
+  }
   return conflicts;
 }
 
@@ -1967,7 +2000,22 @@ function viewReq(id){
   rows.push(['Solicitante',u.name||'—']);
   rows.push(['Departamento',r.dept]);
   rows.push(['Tipo',TYPE_LABEL[r.type]||r.type]);
-  if(r.type==='calendario' && r.schedule){
+  if(r.type==='calendario' && r.schedules){
+    // Nuevo formato: schedules por usuario
+    Object.keys(r.schedules).forEach(userId=>{
+      const tu = DB.users.find(x=>x.id===userId);
+      const sched = r.schedules[userId];
+      const totalH = DAYS.reduce((acc,d)=>acc + (sched[d]||[]).reduce((a,s)=>a+shiftHours(s),0), 0);
+      rows.push([tu?tu.name:userId, `${totalH}h semanales`]);
+      DAYS.forEach(d=>{
+        const segs = sched[d]||[];
+        if(segs.length>0){
+          rows.push(['  '+d, segs.join(', ')]);
+        }
+      });
+    });
+  } else if(r.type==='calendario' && r.schedule){
+    // Formato anterior
     DAYS.forEach(d=>{
       const segs = r.schedule[d]||[];
       const h = segs.reduce((a,s)=>a+shiftHours(s),0);
@@ -3182,9 +3230,78 @@ function scheduleHoursForDay(schedule, day){
   return hours;
 }
 
-// Estado del editor: grid 2D temporal
+// Estado del editor: grid 2D [dayIdx][hour] = array de userIds
 let editorGrid = null;
 let originalGrid = null;
+let dragData = null; // {userId, fromDay, fromHour}
+
+// Inicializa el grid con los schedules de TODOS los técnicos del departamento
+function initEditorGrid(deptUsers){
+  const grid = [];
+  for(let d=0; d<7; d++){
+    grid.push([]);
+    for(let h=0; h<24; h++){
+      grid[d].push([]); // array vacío de userIds
+    }
+  }
+  deptUsers.forEach(u=>{
+    const sch = getSchedule(u.id);
+    DAYS.forEach((day, dIdx)=>{
+      const segs = (sch && sch[day]) || [];
+      segs.forEach(seg=>{
+        const m = seg.match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
+        if(m){
+          let sh = parseInt(m[1],10), eh = parseInt(m[3],10);
+          if(eh <= sh) eh = 24;
+          for(let h=sh; h<eh && h<24; h++){
+            if(!grid[dIdx][h].includes(u.id)){
+              grid[dIdx][h].push(u.id);
+            }
+          }
+        }
+      });
+    });
+  });
+  return grid;
+}
+
+// Convierte el grid multi-usuario a un mapa de schedules por userId
+function editorGridToSchedules(grid, deptUsers){
+  const schedules = {};
+  deptUsers.forEach(u=>{ schedules[u.id] = {}; });
+  DAYS.forEach((day, dIdx)=>{
+    for(let h=0; h<24; h++){
+      grid[dIdx][h].forEach(userId=>{
+        if(!schedules[userId]) schedules[userId] = {};
+        if(!schedules[userId][day]) schedules[userId][day] = [];
+        // Marcar que este usuario trabaja en esta hora
+      });
+    }
+  });
+  // Ahora convertir a segmentos
+  deptUsers.forEach(u=>{
+    const sched = {};
+    DAYS.forEach((day, dIdx)=>{
+      const segs = [];
+      let startHour = null;
+      for(let h=0; h<24; h++){
+        const active = grid[dIdx][h].includes(u.id);
+        if(active && startHour===null){
+          startHour = h;
+        } else if(!active && startHour!==null){
+          segs.push(String(startHour).padStart(2,'0')+':00-'+String(h).padStart(2,'0')+':00');
+          startHour = null;
+        }
+      }
+      if(startHour!==null){
+        segs.push(String(startHour).padStart(2,'0')+':00-24:00');
+      }
+      sched[day] = segs;
+    });
+    schedules[u.id] = sched;
+  });
+  return schedules;
+}
 
 function renderEditor(){
   if(session.role==='admin'){
@@ -3194,11 +3311,13 @@ function renderEditor(){
   const me = DB.users.find(u=>u.id===session.userId);
   if(!me){ return; }
 
-  // Inicializar el grid con el schedule actual del técnico
-  const currentSchedule = getSchedule(me.id);
+  // Obtener todos los técnicos activos del departamento
+  const deptUsers = DB.users.filter(u=>u.dept===me.dept && u.role!=='admin' && u.active);
+
+  // Inicializar el grid con los schedules de todos los técnicos del departamento
   if(!editorGrid){
-    editorGrid = scheduleToGrid(currentSchedule);
-    originalGrid = scheduleToGrid(currentSchedule);
+    editorGrid = initEditorGrid(deptUsers);
+    originalGrid = JSON.parse(JSON.stringify(editorGrid));
   }
 
   // Mostrar nombre y depto
@@ -3206,10 +3325,6 @@ function renderEditor(){
   const deptBadge = document.getElementById('editorDeptBadge');
   deptBadge.textContent = me.dept;
   deptBadge.className = 'badge ' + (me.dept==='NOC'?'noc':'guardia');
-
-  // Obtener todos los técnicos activos del departamento (incluyendo al logueado)
-  const deptUsers = DB.users.filter(u=>u.dept===me.dept && u.role!=='admin' && u.active);
-  const myColor = getUserColor(me);
 
   // Leyenda de técnicos
   const legend = deptUsers.map(u=>{
@@ -3222,123 +3337,159 @@ function renderEditor(){
   const headDays = DAYS.map(d=>`<th class="day-col"><span class="day-name">${d}</span></th>`).join('');
 
   // Construir filas por hora
-  const hours = [];
-  for(let h=0; h<24; h++){ hours.push(h); }
-
-  const rows = hours.map(h=>{
+  const rows = [];
+  for(let h=0; h<24; h++){
     const hourStr = String(h).padStart(2,'0')+':00';
     const endStr = String((h+1)%24).padStart(2,'0')+':00';
     const tds = DAYS.map((day,dIdx)=>{
-      const iAmActive = editorGrid[dIdx][h];
-      // Construir bloques de TODOS los técnicos del departamento
-      const blocks = [];
-      deptUsers.forEach(u=>{
-        const isMe = u.id===me.id;
-        // Para el técnico logueado, usar editorGrid; para los demás, su schedule oficial
-        let isActive = false;
-        if(isMe){
-          isActive = iAmActive;
-        } else {
-          const sch = getSchedule(u.id);
-          const seg = (sch && sch[day]) ? sch[day].find(s=>coversHour(s, hourStr)) : null;
-          isActive = !!seg;
-        }
-        if(isActive){
-          const c = getUserColor(u);
-          if(isMe){
-            blocks.push(`<div class="cal-cell-block" style="background:${c};cursor:pointer;outline:2px solid #fff;outline-offset:-2px" onclick="toggleCell(${dIdx},${h})" title="${day} ${hourStr} - Tu turno (clic para quitar)">
-              <span class="ccb-name">${shortName(u.name)}</span>
-              <span class="editor-plus" onclick="event.stopPropagation();extendCell(${dIdx},${h})" title="Extender 1 hora">+</span>
-            </div>`);
-          } else {
-            blocks.push(`<div class="cal-cell-block" style="background:${c};opacity:.5" title="${day} ${hourStr} - ${u.name}">
-              <span class="ccb-name">${shortName(u.name)}</span>
-            </div>`);
-          }
-        }
-      });
-
-      if(blocks.length > 0){
-        // Si yo estoy activo, la celda ya tiene mi bloque con onclick
-        // Si solo hay otros, agregar un overlay clicable para que pueda agregarme
-        if(!iAmActive){
-          return `<td class="editor-cell" onclick="toggleCell(${dIdx},${h})" title="${day} ${hourStr} (clic para agregar tu hora)">${blocks.join('')}<div style="position:absolute;top:0;left:0;right:0;bottom:0;cursor:pointer"></div></td>`;
-        }
-        return `<td class="editor-cell">${blocks.join('')}</td>`;
-      } else {
-        // Celda vacía: clic para agregarme
-        if(iAmActive){
-          return `<td class="editor-cell" onclick="toggleCell(${dIdx},${h})" title="${day} ${hourStr} (clic para quitar)">
-            <div class="cal-cell-block" style="background:${myColor};cursor:pointer;outline:2px solid #fff;outline-offset:-2px">
-              <span class="ccb-name">${shortName(me.name)}</span>
-              <span class="editor-plus" onclick="event.stopPropagation();extendCell(${dIdx},${h})" title="Extender 1 hora">+</span>
-            </div>
-          </td>`;
-        }
-        return `<td class="editor-cell editor-empty" onclick="toggleCell(${dIdx},${h})" title="${day} ${hourStr} (clic para agregar)">+</td>`;
+      const userIds = editorGrid[dIdx][h] || [];
+      if(userIds.length === 0){
+        // Celda vacía: drop target + clic para agregarme
+        return `<td class="editor-cell editor-empty"
+          onclick="addMeToCell(${dIdx},${h})"
+          ondragover="event.preventDefault();this.style.background='var(--accent-soft)'"
+          ondragleave="this.style.background=''"
+          ondrop="dropOnCell(${dIdx},${h})"
+          title="${day} ${hourStr} (clic o arrastra aquí)">＋</td>`;
       }
+      // Hay bloques: renderizar cada uno
+      const blocks = userIds.map(uid=>{
+        const u = DB.users.find(x=>x.id===uid);
+        if(!u) return '';
+        const c = getUserColor(u);
+        const isMe = uid===me.id;
+        const outline = isMe ? 'outline:2px solid #fff;outline-offset:-2px;' : '';
+        return `<div class="cal-cell-block editor-block" style="background:${c};${outline}"
+            draggable="true"
+            ondragstart="startDrag('${uid}',${dIdx},${h})"
+            ondragend="endDrag()"
+            onclick="removeBlock(${dIdx},${h},'${uid}')"
+            title="${day} ${hourStr} - ${u.name} (clic para quitar, arrastra para mover)">
+          <span class="ccb-name">${shortName(u.name)}</span>
+          <span class="editor-plus" onclick="event.stopPropagation();extendBlock(${dIdx},${h},'${uid}')" title="Extender 1 hora (toma el lugar del técnico existente)">+</span>
+        </div>`;
+      }).join('');
+      return `<td class="editor-cell"
+        ondragover="event.preventDefault();this.style.background='var(--accent-soft)'"
+        ondragleave="this.style.background=''"
+        ondrop="dropOnCell(${dIdx},${h})"
+        title="${day} ${hourStr}">${blocks}</td>`;
     }).join('');
-    return `<tr><th>${hourStr} - ${endStr}</th>${tds}</tr>`;
-  }).join('');
+    rows.push(`<tr><th>${hourStr} - ${endStr}</th>${tds}</tr>`);
+  }
 
-  // Resumen de horas por día
+  // Resumen de horas por día (del técnico logueado)
   const daySummary = DAYS.map((d,i)=>{
-    const h = editorGrid[i].filter(Boolean).length;
+    const h = editorGrid[i].filter(arr=>arr.includes(me.id)).length;
     const overLimit = h > 12;
     return `<span style="color:${overLimit?'var(--danger)':'var(--muted)'};font-size:11px;${overLimit?'font-weight:600':''}">${d.slice(0,3)}: ${h}h${overLimit?' ⚠':''}</span>`;
   }).join(' · ');
 
-  const totalH = editorGrid.flat().filter(Boolean).length;
+  const totalH = editorGrid.flat().filter(arr=>arr.includes(me.id)).length;
 
   document.getElementById('editorCalWrap').innerHTML = `
     <div class="legend-schedule">${legend}</div>
     <div class="cal-table-wrap">
       <table class="cal-sched">
         <thead><tr><th class="time-col">Franja</th>${headDays}</tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody>${rows.join('')}</tbody>
       </table>
     </div>`;
 
   document.getElementById('editorFoot').innerHTML = `
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
-      <span style="color:var(--muted);font-size:12px"><b>Total semanal: ${totalH}h</b></span>
+      <span style="color:var(--muted);font-size:12px"><b>Tu total semanal: ${totalH}h</b></span>
     </div>
     <div style="color:var(--muted);font-size:11px;margin-bottom:6px">${daySummary}</div>
-    <div style="color:var(--muted-2);font-size:11px">Tus celdas tienen borde blanco · Clic para activar/desactivar · Botón + para extender 1 hora · Máximo 12h por día</div>
+    <div style="color:var(--muted-2);font-size:11px">
+      <b>ARRASTRA</b> cualquier bloque para moverlo · <b>CLIC</b> en un bloque para quitarlo · <b>CLIC</b> en celda vacía para agregarte · <b>+</b> para extender (reemplaza al técnico existente) · Máximo 12h por día
+    </div>
   `;
 
-  // Alerta si algún día supera 12h
+  // Alerta si algún día supera 12h (para el técnico logueado)
   const alertBox = document.getElementById('editorAlertBox');
-  const overDays = DAYS.map((d,i)=>({d, h:editorGrid[i].filter(Boolean).length})).filter(x=>x.h>12);
+  const overDays = DAYS.map((d,i)=>({d, h:editorGrid[i].filter(arr=>arr.includes(me.id)).length})).filter(x=>x.h>12);
   if(overDays.length>0){
     alertBox.style.display = 'block';
     alertBox.style.background = 'var(--danger-soft)';
     alertBox.style.borderLeftColor = 'var(--danger)';
-    alertBox.innerHTML = `⚠️ <b>Días que superan las 12 horas:</b> ${overDays.map(x=>`${x.d} (${x.h}h)`).join(', ')}. Debes reducir horas antes de enviar.`;
+    alertBox.innerHTML = `⚠️ <b>Tus días que superan las 12 horas:</b> ${overDays.map(x=>`${x.d} (${x.h}h)`).join(', ')}. Debes reducir horas antes de enviar.`;
   } else {
     alertBox.style.display = 'none';
   }
 }
 
-// Toggle una celda del editor
-function toggleCell(dayIdx, hour){
+// Agrega al técnico logueado a una celda
+function addMeToCell(dayIdx, hour){
   if(!editorGrid) return;
-  editorGrid[dayIdx][hour] = !editorGrid[dayIdx][hour];
+  const me = DB.users.find(u=>u.id===session.userId);
+  if(!me) return;
+  if(!editorGrid[dayIdx][hour].includes(me.id)){
+    editorGrid[dayIdx][hour].push(me.id);
+    renderEditor();
+  }
+}
+
+// Quita un técnico específico de una celda
+function removeBlock(dayIdx, hour, userId){
+  if(!editorGrid) return;
+  editorGrid[dayIdx][hour] = editorGrid[dayIdx][hour].filter(id=>id!==userId);
   renderEditor();
 }
 
-// Extiende 1 hora: agrega la hora adyacente (siguiente o anterior)
-function extendCell(dayIdx, hour){
+// Extiende 1 hora: agrega al técnico en la celda adyacente, REEMPLAZANDO al técnico existente
+function extendBlock(dayIdx, hour, userId){
   if(!editorGrid) return;
-  // Intentar agregar la siguiente hora; si ya está ocupada o es 23, intentar la anterior
-  if(hour < 23 && !editorGrid[dayIdx][hour+1]){
-    editorGrid[dayIdx][hour+1] = true;
-  } else if(hour > 0 && !editorGrid[dayIdx][hour-1]){
-    editorGrid[dayIdx][hour-1] = true;
-  } else {
-    toast('No hay espacio adyacente disponible para extender.','warn');
+  // Intentar la siguiente hora; si es 23, intentar la anterior
+  let targetHour = null;
+  if(hour < 23){
+    targetHour = hour + 1;
+  } else if(hour > 0){
+    targetHour = hour - 1;
+  }
+  if(targetHour === null){
+    toast('No hay celda adyacente disponible.','warn');
     return;
   }
+  // Reemplazar: quitar a quien esté ahí y poner al técnico
+  const existing = editorGrid[dayIdx][targetHour];
+  const existingUsers = existing.filter(id=>id!==userId);
+  if(existingUsers.length > 0){
+    const replacedNames = existingUsers.map(id=>{
+      const u = DB.users.find(x=>x.id===id);
+      return u ? u.name : 'desconocido';
+    }).join(', ');
+    toast(`Reemplazado a ${replacedNames} en ${DAYS[dayIdx]} ${String(targetHour).padStart(2,'0')}:00`,'warn');
+  }
+  editorGrid[dayIdx][targetHour] = [userId];
+  renderEditor();
+}
+
+// Inicia el arrastre de un bloque
+function startDrag(userId, fromDay, fromHour){
+  dragData = { userId, fromDay, fromHour };
+}
+
+// Finaliza el arrastre
+function endDrag(){
+  // Limpiar estilos de hover
+  document.querySelectorAll('.editor-cell').forEach(td=>{
+    td.style.background = '';
+  });
+}
+
+// Suelta un bloque en una celda: mueve al técnico de origen a destino
+function dropOnCell(toDay, toHour){
+  if(!dragData || !editorGrid) return;
+  event.preventDefault();
+  const { userId, fromDay, fromHour } = dragData;
+  // Qitar de origen
+  editorGrid[fromDay][fromHour] = editorGrid[fromDay][fromHour].filter(id=>id!==userId);
+  // Agregar en destino (reemplaza si ya hay alguien, como pidió el usuario)
+  if(!editorGrid[toDay][toHour].includes(userId)){
+    editorGrid[toDay][toHour].push(userId);
+  }
+  dragData = null;
   renderEditor();
 }
 
@@ -3346,47 +3497,54 @@ function extendCell(dayIdx, hour){
 function resetEditor(){
   const me = DB.users.find(u=>u.id===session.userId);
   if(!me) return;
-  const currentSchedule = getSchedule(me.id);
-  editorGrid = scheduleToGrid(currentSchedule);
+  const deptUsers = DB.users.filter(u=>u.dept===me.dept && u.role!=='admin' && u.active);
+  editorGrid = initEditorGrid(deptUsers);
+  originalGrid = JSON.parse(JSON.stringify(editorGrid));
   renderEditor();
   toast('Editor restablecido al horario oficial.','ok');
 }
 
-// Envía el borrador al admin
+// Envía el borrador al admin con el schedule completo del departamento
 function sendDraft(){
   if(!editorGrid){ toast('No hay cambios para enviar.','err'); return; }
   const me = DB.users.find(u=>u.id===session.userId);
   if(!me){ toast('Sesión inválida.','err'); return; }
+  const deptUsers = DB.users.filter(u=>u.dept===me.dept && u.role!=='admin' && u.active);
 
-  // Verificar que no haya días con más de 12 horas
-  const overDays = DAYS.map((d,i)=>({d, h:editorGrid[i].filter(Boolean).length})).filter(x=>x.h>12);
+  // Verificar que NINGÚN día supere 12 horas para el técnico logueado
+  const overDays = DAYS.map((d,i)=>({d, h:editorGrid[i].filter(arr=>arr.includes(me.id)).length})).filter(x=>x.h>12);
   if(overDays.length>0){
-    toast(`Días con más de 12h: ${overDays.map(x=>x.d).join(', ')}. Reduce antes de enviar.`,'err');
+    toast(`Tus días con más de 12h: ${overDays.map(x=>x.d).join(', ')}. Reduce antes de enviar.`,'err');
     return;
   }
 
-  // Convertir el grid a schedule
-  const proposedSchedule = gridToSchedule(editorGrid);
+  // Convertir el grid a schedules por usuario
+  const proposedSchedules = editorGridToSchedules(editorGrid, deptUsers);
 
   // Verificar si hay cambios respecto al original
-  const originalSchedule = gridToSchedule(originalGrid);
-  if(JSON.stringify(proposedSchedule) === JSON.stringify(originalSchedule)){
+  const originalSchedules = editorGridToSchedules(originalGrid, deptUsers);
+  if(JSON.stringify(proposedSchedules) === JSON.stringify(originalSchedules)){
     toast('No has hecho cambios. Modifica el calendario antes de enviar.','warn');
     return;
   }
 
-  // Pedir motivo
+  // Resumen de cambios para el modal
+  const summary = deptUsers.map(u=>{
+    const oldH = Object.values(originalSchedules[u.id]||{}).flat().reduce((a,s)=>a+shiftHours(s),0);
+    const newH = Object.values(proposedSchedules[u.id]||{}).flat().reduce((a,s)=>a+shiftHours(s),0);
+    const diff = newH - oldH;
+    const diffStr = diff===0 ? 'sin cambios' : (diff>0 ? `+${diff}h` : `${diff}h`);
+    return `<span style="color:${diff===0?'var(--muted-2)':'var(--accent)'}">${shortName(u.name)}: ${oldH}h → ${newH}h (${diffStr})</span>`;
+  }).join(' · ');
+
   openModal('Enviar propuesta de horario',
-    `<p style="margin-bottom:10px">Vas a enviar tu propuesta de horario semanal al administrador para su aprobación.</p>
+    `<p style="margin-bottom:10px">Vas a enviar una propuesta de horario para TODO el departamento <b>${me.dept}</b>. Al aprobarla, el admin reemplazará los horarios oficiales de todos los técnicos.</p>
      <div style="background:var(--bg-2);border:1px solid var(--border-soft);border-radius:9px;padding:10px 14px;font-size:12px;margin-bottom:14px">
-       ${DAYS.map((d,i)=>{
-         const h = editorGrid[i].filter(Boolean).length;
-         return `<span style="color:${h>0?'var(--text)':'var(--muted-2)'}">${d.slice(0,3)}: ${h}h</span>`;
-       }).join(' · ')}
+       ${summary}
      </div>
      <div class="field">
        <label>Motivo / comentarios (opcional)</label>
-       <textarea id="draftMotivo" placeholder="Ej. Cambio de horario por motivo personal, cobertura de vacaciones, etc."></textarea>
+       <textarea id="draftMotivo" placeholder="Ej. Reorganización de turnos, cobertura de vacaciones, etc."></textarea>
      </div>`,
     [
       {label:'Cancelar', cls:'ghost', onclick:closeModal},
@@ -3399,14 +3557,13 @@ function sendDraft(){
           dept: me.dept,
           status: 'pendiente',
           createdAt: nowStr(),
-          schedule: proposedSchedule,
+          schedules: proposedSchedules, // mapa: { userId: { Lunes: [...], ... } }
           motivo: motivo
         };
         DB.requests.push(newReq);
         saveRequest(newReq);
         closeModal();
         toast('Propuesta enviada al administrador.','ok');
-        // Resetear el editor al estado propuesto (para que pueda seguir editando si quiere)
         originalGrid = JSON.parse(JSON.stringify(editorGrid));
         go('mias');
       }}
