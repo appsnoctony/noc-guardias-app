@@ -3834,5 +3834,324 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   }
 });
 </script>
+<script>
+/* =====================================================================
+   proponer-horario.js  ·  NOC & Guardias
+   Reemplaza por completo la pestaña "Proponer horario".
+   - Propuesta POR SEMANA (solo semanas que aún no han pasado; los días
+     pasados quedan bloqueados).
+   - Motivo obligatorio (cambio de horario, vacaciones, etc.).
+   - Mover casillas arrastrando O con clic (clic en bloque → clic en destino).
+   - Al aprobar, SOLO cambia el calendario oficial de esa semana.
+   Se carga DESPUÉS del script principal (ver instrucciones).
+   ===================================================================== */
+(function(){
+'use strict';
+
+/* ---------- Estilos ---------- */
+const css = document.createElement('style');
+css.textContent = `
+.ph-form{display:grid;grid-template-columns:1fr 2fr;gap:12px;margin-bottom:14px}
+.ph-bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.ph-week{background:var(--bg-2);border:1px solid var(--border);border-radius:10px;padding:8px 14px;font-size:13px}
+.ph-week small{display:block;color:var(--muted);font-size:11px}
+.ph-cell{cursor:pointer;text-align:center;vertical-align:middle;color:var(--muted-2);height:24px;transition:.12s}
+.ph-cell:hover{background:var(--accent-soft)}
+.ph-lock{background:var(--bg-2);opacity:.45;cursor:not-allowed}
+.ph-lock:hover{background:var(--bg-2)}
+.ph-blk{position:relative;cursor:grab}
+.ph-blk.sel{outline:2px solid #fff;outline-offset:-2px;box-shadow:0 0 0 2px var(--accent)}
+.ph-x{position:absolute;top:1px;right:2px;background:rgba(0,0,0,.35);color:#fff;border-radius:3px;padding:0 5px;font-size:11px;line-height:14px;cursor:pointer}
+.ph-x:hover{background:var(--danger)}
+@media(max-width:700px){.ph-form{grid-template-columns:1fr}}
+`;
+document.head.appendChild(css);
+
+/* ---------- Estructura de la pestaña ---------- */
+document.getElementById('view-nueva').innerHTML = `
+<div class="page-head">
+  <div><h2>Proponer horario</h2>
+  <p>Elige la semana, mueve las casillas, indica el motivo y envía la propuesta al administrador. Solo se pueden editar días que aún no han pasado.</p></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <button class="btn ghost" onclick="resetEditor()">↺ Restablecer</button>
+    <button class="btn success" onclick="sendDraft()">📤 Enviar propuesta</button>
+  </div>
+</div>
+<div class="panel"><div class="panel-body">
+  <div class="ph-bar">
+    <button class="btn ghost sm" onclick="PH.nav(-1)">← Semana anterior</button>
+    <div class="ph-week" id="phWeek"></div>
+    <button class="btn ghost sm" onclick="PH.nav(1)">Semana siguiente →</button>
+    <span id="phTag" class="badge"></span>
+  </div>
+  <div class="ph-form">
+    <div class="field"><label>Motivo <span class="req">*</span></label>
+      <select id="phMotivo">
+        <option value="">Selecciona…</option>
+        <option>Cambio de horario</option><option>Vacaciones</option><option>Permiso</option>
+        <option>Cobertura de compañero</option><option>Otro</option>
+      </select></div>
+    <div class="field"><label>Detalle (opcional)</label>
+      <textarea id="phDetalle" style="min-height:42px" placeholder="Ej. Cubro a Luis el jueves por cita médica"></textarea></div>
+  </div>
+  <div class="cal-alert" id="phAlert" style="display:none"></div>
+  <div class="legend-schedule" id="phLegend"></div>
+  <div class="cal-table-wrap" id="phGrid"></div>
+  <div class="cal-table-foot" id="phFoot"></div>
+</div></div>`;
+
+/* ---------- Utilidades ---------- */
+const $ = id => document.getElementById(id);
+const clone = o => JSON.parse(JSON.stringify(o));
+const wsOf = off => fmtCalDate(getWeekDates(off)[0]);
+const MAX_WEEKS = 26, MAX_H = 12;
+const baseGetSchedule = window.getSchedule;
+const baseApprove = window.approveCalendarDraft;
+const baseDetail = window.detailSummary;
+
+/* ---------- Horario oficial POR SEMANA ----------
+   Si hay una propuesta aprobada para esa semana, manda sobre el horario base. */
+function weekOverride(userId, ws){
+  let best = null;
+  DB.requests.forEach(r=>{
+    if(r.type==='calendario' && r.status==='aprobada' && r.weekStart===ws && r.schedules && r.schedules[userId]){
+      if(!best || (r.resolvedAt||'') >= (best.resolvedAt||'')) best = r;
+    }
+  });
+  return best ? best.schedules[userId] : null;
+}
+window.getSchedule = function(userId, ws){
+  if(!ws){
+    const v = $('view-horario');
+    if(v && v.classList.contains('active')) ws = wsOf(calWeekOffset);
+  }
+  return (ws && weekOverride(userId, ws)) || baseGetSchedule(userId);
+};
+
+/* ---------- Estado del editor ---------- */
+let E = fresh();
+function fresh(){ return {off:0, dept:null, grid:null, orig:null, sel:null, drag:null, editingId:null, reqUser:null}; }
+
+function meUser(){ return DB.users.find(u=>u.id===session.userId); }
+function users(){
+  const dept = E.dept || (meUser()||{}).dept;
+  return DB.users.filter(u=>u.dept===dept && u.role!=='admin' && u.active);
+}
+const isLocked = i => addDaysStr(wsOf(E.off), i) < todayStr();
+const dirty = () => JSON.stringify(E.grid) !== JSON.stringify(E.orig);
+
+function buildGrid(list, ws){
+  const g = DAYS.map(()=>Array.from({length:24},()=>[]));
+  list.forEach(u=>{
+    const s = window.getSchedule(u.id, ws);
+    DAYS.forEach((d,i)=>scheduleHoursForDay(s,d).forEach(h=>{ if(!g[i][h].includes(u.id)) g[i][h].push(u.id); }));
+  });
+  return g;
+}
+function loadWeek(off){
+  E.off = off; E.sel = null;
+  if(!E.dept) E.dept = (meUser()||{}).dept;
+  E.grid = buildGrid(users(), wsOf(off));
+  E.orig = clone(E.grid);
+}
+function hoursOf(grid, uid, day){ return grid[day].filter(c=>c.includes(uid)).length; }
+function weekHours(grid, uid){ return DAYS.reduce((a,_,i)=>a+hoursOf(grid,uid,i),0); }
+function overLimit(list){
+  const out = [];
+  list.forEach(u=>DAYS.forEach((d,i)=>{ const h=hoursOf(E.grid,u.id,i); if(h>MAX_H) out.push(`${shortName(u.name)} · ${d} (${h}h)`); }));
+  return out;
+}
+
+/* ---------- Render ---------- */
+window.renderEditor = function(){
+  const grid = $('phGrid');
+  if(session.role==='admin' && !E.editingId){
+    grid.innerHTML = '<p style="color:var(--muted);padding:20px">El editor es para técnicos. Como administrador aprueba o edita propuestas desde Pendientes.</p>';
+    return;
+  }
+  if(!E.grid) loadWeek(E.off);
+  const ws = wsOf(E.off), dates = getWeekDates(E.off), list = users();
+  const today = todayStr();
+
+  $('phWeek').innerHTML = `<b>Semana del ${fmtDayLabel(ws)} al ${fmtDayLabel(addDaysStr(ws,6))}</b><small>${E.off===0?'Semana actual (los días pasados están bloqueados)':'En '+E.off+' semana(s)'}</small>`;
+  const tag = $('phTag'); tag.textContent = E.dept; tag.className = 'badge '+(E.dept==='NOC'?'noc':'guardia');
+
+  const head = dates.map((d,i)=>{
+    const lock = isLocked(i), isToday = fmtCalDate(d)===today;
+    return `<th class="day-col ${isToday?'today-col':''}" style="${lock?'opacity:.5':''}"><span class="day-name">${DAYS[i]}${lock?' 🔒':''}</span><span class="day-date">${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}</span></th>`;
+  }).join('');
+
+  const rows = [];
+  for(let h=0; h<24; h++){
+    const tds = DAYS.map((day,i)=>{
+      const ids = E.grid[i][h], lock = isLocked(i);
+      const blocks = ids.map(uid=>{
+        const u = DB.users.find(x=>x.id===uid); if(!u) return '';
+        const sel = E.sel && E.sel.i===i && E.sel.h===h && E.sel.uid===uid;
+        if(lock) return `<div class="cal-cell-block" style="background:${getUserColor(u)}"><span class="ccb-name">${shortName(u.name)}</span></div>`;
+        return `<div class="cal-cell-block ph-blk ${sel?'sel':''}" style="background:${getUserColor(u)}" draggable="true"
+          ondragstart="PH.ds(event,${i},${h},'${uid}')" onclick="event.stopPropagation();PH.pick(${i},${h},'${uid}')">
+          <span class="ccb-name">${shortName(u.name)}</span>
+          <span class="ph-x" title="Quitar" onclick="event.stopPropagation();PH.del(${i},${h},'${uid}')">×</span></div>`;
+      }).join('');
+      if(lock) return `<td class="ph-cell ph-lock">${blocks||'·'}</td>`;
+      return `<td class="ph-cell" onclick="PH.cell(${i},${h})" ondragover="event.preventDefault()" ondrop="PH.drop(event,${i},${h})">${blocks||'＋'}</td>`;
+    }).join('');
+    rows.push(`<tr><th>${formatHourRange(String(h).padStart(2,'0')+':00')}</th>${tds}</tr>`);
+  }
+  grid.innerHTML = `<table class="cal-sched"><thead><tr><th class="time-col">Franja horaria</th>${head}</tr></thead><tbody>${rows.join('')}</tbody></table>`;
+
+  $('phLegend').innerHTML = list.map(u=>{
+    const now = weekHours(E.grid,u.id), was = weekHours(E.orig,u.id), d = now-was;
+    return `<span class="lg"><i style="background:${getUserColor(u)}"></i>${u.name}${u.id===session.userId?' (tú)':''} · ${now}h/sem${d?` <b style="color:${d>0?'var(--accent)':'var(--warning)'}">(${d>0?'+':''}${d}h)</b>`:''}</span>`;
+  }).join('');
+
+  const over = overLimit(list), al = $('phAlert');
+  if(over.length){
+    al.style.display='block'; al.style.background='var(--danger-soft)'; al.style.borderLeftColor='var(--danger)';
+    al.innerHTML = `⚠️ <b>Superan ${MAX_H} horas en un día:</b> ${over.join(', ')}. Corrígelo antes de enviar.`;
+  } else al.style.display='none';
+
+  $('phFoot').innerHTML = E.sel
+    ? `<b>Bloque seleccionado:</b> haz clic en la celda destino para moverlo (o clic otra vez en el bloque para cancelar).`
+    : `<b>Arrastra</b> un bloque a otra celda, o haz <b>clic en el bloque</b> y luego clic en la celda destino · <b>＋</b> agrega tu turno en esa hora · <b>×</b> quita el bloque · Máximo ${MAX_H}h por día.`;
+};
+
+/* ---------- Acciones de la cuadrícula ---------- */
+function move(fi,fh,uid,ti,th){
+  if(isLocked(ti)){ toast('Ese día ya pasó y no se puede editar.','err'); return; }
+  E.grid[fi][fh] = E.grid[fi][fh].filter(id=>id!==uid);
+  if(!E.grid[ti][th].includes(uid)) E.grid[ti][th].push(uid);
+  E.sel = null; E.drag = null; renderEditor();
+}
+window.PH = {
+  nav(dir){
+    const n = E.off + dir;
+    if(n<0){ toast('No se pueden editar semanas que ya pasaron.','warn'); return; }
+    if(n>MAX_WEEKS) return;
+    if(dirty() && !confirm('Tienes cambios sin enviar en esta semana. ¿Descartarlos?')) return;
+    E.editingId = null; loadWeek(n); renderEditor();
+  },
+  cell(i,h){
+    if(isLocked(i)) return;
+    if(E.sel) return move(E.sel.i,E.sel.h,E.sel.uid,i,h);
+    const me = session.userId;
+    if(!E.grid[i][h].includes(me) && users().some(u=>u.id===me)){ E.grid[i][h].push(me); renderEditor(); }
+  },
+  pick(i,h,uid){
+    const s = E.sel;
+    E.sel = (s && s.i===i && s.h===h && s.uid===uid) ? null : {i,h,uid};
+    renderEditor();
+  },
+  del(i,h,uid){ E.grid[i][h] = E.grid[i][h].filter(id=>id!==uid); E.sel=null; renderEditor(); },
+  ds(ev,i,h,uid){ E.drag = {i,h,uid}; try{ ev.dataTransfer.setData('text/plain',uid); }catch(_){} },
+  drop(ev,i,h){ ev.preventDefault(); if(E.drag) move(E.drag.i,E.drag.h,E.drag.uid,i,h); }
+};
+
+window.resetEditor = function(){
+  if(dirty() && !confirm('¿Descartar los cambios y volver al horario oficial de esta semana?')) return;
+  E.editingId = null; loadWeek(E.off);
+  $('phMotivo').value=''; $('phDetalle').value='';
+  renderEditor(); toast('Editor restablecido al horario oficial.','ok');
+};
+
+/* ---------- Enviar propuesta ---------- */
+window.sendDraft = function(){
+  if(!E.grid){ toast('No hay cambios para enviar.','err'); return; }
+  if(E.off<0){ toast('No se pueden proponer semanas pasadas.','err'); return; }
+  const tipo = $('phMotivo').value, det = $('phDetalle').value.trim();
+  if(!tipo){ toast('Selecciona el motivo de la propuesta.','err'); return; }
+  const list = users(), over = overLimit(list);
+  if(over.length){ toast('Hay días con más de '+MAX_H+'h: '+over.join(', '),'err'); return; }
+  if(!dirty()){ toast('No has hecho cambios en el calendario.','warn'); return; }
+
+  const ws = wsOf(E.off), we = addDaysStr(ws,6);
+  const schedules = editorGridToSchedules(E.grid, list);
+  const summary = list.map(u=>{
+    const a = weekHours(E.orig,u.id), b = weekHours(E.grid,u.id), d = b-a;
+    return `<li><b>${shortName(u.name)}</b>: ${a}h → ${b}h ${d? `(${d>0?'+':''}${d}h)`:'(sin cambio de horas)'}</li>`;
+  }).join('');
+
+  openModal('Enviar propuesta de horario',
+    `<p style="margin-bottom:8px">Semana del <b>${fmtDayLabel(ws)}</b> al <b>${fmtDayLabel(we)}</b> · ${E.dept}</p>
+     <p style="margin-bottom:8px">Motivo: <b>${esc(tipo)}</b>${det?' — '+esc(det):''}</p>
+     <ul style="margin:0 0 12px 18px;font-size:12.5px;line-height:1.6">${summary}</ul>
+     <p style="color:var(--muted);font-size:12.5px">Si el administrador la aprueba, el calendario oficial de esa semana cambiará para todos.</p>`,
+    [{label:'Cancelar',cls:'ghost',onclick:closeModal},
+     {label:'Enviar',cls:'success',onclick:()=>{
+        const motivo = tipo + (det?': '+det:'');
+        let r = E.editingId && DB.requests.find(x=>x.id===E.editingId);
+        if(r){
+          Object.assign(r,{schedules,weekStart:ws,motivoTipo:tipo,motivo,status:'pendiente',updatedAt:nowStr(),resolvedAt:null,resolvedBy:null,comments:''});
+          delete r.schedule;
+        } else {
+          r = {id:uid('r'),type:'calendario',requesterId:session.userId,dept:E.dept,status:'pendiente',
+               createdAt:nowStr(),weekStart:ws,schedules,motivoTipo:tipo,motivo};
+          DB.requests.push(r);
+        }
+        saveRequest(r);
+        closeModal(); toast('Propuesta enviada al administrador.','ok');
+        E = fresh(); $('phMotivo').value=''; $('phDetalle').value='';
+        go(session.role==='admin'?'pendientes':'mias');
+     }}]);
+};
+
+/* ---------- Editar una propuesta existente ---------- */
+const baseEdit = window.editRequest;
+window.editRequest = function(id){
+  const r = DB.requests.find(x=>x.id===id);
+  if(!r || r.type!=='calendario') return baseEdit(id);
+  if(!canEdit(r)){ toast('No tienes permiso para editar esta solicitud','err'); return; }
+  if(!r.weekStart || !r.schedules){ toast('Es una propuesta antigua sin semana definida. Crea una nueva.','warn'); return; }
+  const off = Math.round((dateFromStr(r.weekStart)-dateFromStr(wsOf(0)))/(7*86400000));
+  if(off<0){ toast('Esa semana ya pasó y no se puede editar.','err'); return; }
+  E = fresh(); E.off = off; E.dept = r.dept; E.editingId = r.id;
+  E.orig = buildGrid(users(), r.weekStart);
+  E.grid = DAYS.map(()=>Array.from({length:24},()=>[]));
+  Object.keys(r.schedules).forEach(uid=>DAYS.forEach((d,i)=>scheduleHoursForDay(r.schedules[uid],d).forEach(h=>E.grid[i][h].push(uid))));
+  closeModal(); go('nueva');
+  const tipo = r.motivoTipo || '';
+  $('phMotivo').value = tipo;
+  $('phDetalle').value = (r.motivo||'').replace(tipo+': ','').replace(tipo,'');
+  toast('Editando propuesta. Modifica y vuelve a enviar.','ok');
+};
+
+/* ---------- Aprobación: solo cambia ESA semana ---------- */
+window.approveCalendarDraft = function(r){
+  if(!r.weekStart) return baseApprove(r);   // propuestas antiguas
+  r.status='aprobada'; r.resolvedAt=nowStr(); r.resolvedBy=session.userId;
+  saveRequest(r);
+  toast(`Aprobada. El calendario oficial de la semana del ${fmtDayLabel(r.weekStart)} fue actualizado.`,'ok');
+  renderPendientes(); renderResumen();
+  const hv = $('view-horario'); if(hv && hv.classList.contains('active')) renderHorario();
+};
+
+/* ---------- Choques: solo entre propuestas de la MISMA semana ---------- */
+window.detectCalendarConflicts = function(req){
+  const out = [];
+  if(!req || req.type!=='calendario' || !req.weekStart || !req.schedules) return out;
+  const changed = (s,uid)=>JSON.stringify(s[uid])!==JSON.stringify(baseGetSchedule(uid));
+  DB.requests.filter(o=>o.id!==req.id && o.type==='calendario' && o.status==='pendiente'
+      && o.dept===req.dept && o.weekStart===req.weekStart && o.schedules).forEach(o=>{
+    Object.keys(req.schedules).forEach(uid=>{
+      const a=req.schedules[uid], b=o.schedules[uid];
+      if(b && changed(req.schedules,uid) && changed(o.schedules,uid) && JSON.stringify(a)!==JSON.stringify(b)){
+        out.push({otrosUsuario:reqUserName(o), otrosDia:'misma semana', detalle:'ambas propuestas modifican el horario de '+userNameById(uid)});
+      }
+    });
+  });
+  return out;
+};
+
+/* ---------- Texto de detalle en listados ---------- */
+window.detailSummary = function(r){
+  if(r.type==='calendario' && r.weekStart)
+    return `Semana del ${fmtDayLabel(r.weekStart)} al ${fmtDayLabel(addDaysStr(r.weekStart,6))}${r.motivoTipo?' · '+esc(r.motivoTipo):''}`;
+  return baseDetail(r);
+};
+
+})();
+
+</script>
 </body>
 </html>
