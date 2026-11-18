@@ -771,39 +771,42 @@
     text-align:center;
     vertical-align:middle;
     color:var(--muted-2);
-    font-size:12px;
+    font-size:14px;
     transition:.12s;
     position:relative;
     min-height:24px;
     height:24px;
     user-select:none;
+    padding:0!important;
   }
   .editor-cell:hover{
     background:var(--accent-soft)!important;
+  }
+  .editor-cell.editor-empty{
+    color:var(--muted-2);
+    font-size:16px;
+    font-weight:300;
+  }
+  .editor-cell.editor-empty:hover{
     color:var(--accent);
-  }
-  .editor-cell.active{
-    color:#fff;
-    font-weight:500;
-  }
-  .editor-cell.active:hover{
-    opacity:.7;
+    background:var(--accent-soft)!important;
   }
   .editor-plus{
     position:absolute;
     top:1px;
     right:2px;
-    background:rgba(255,255,255,.3);
+    background:rgba(255,255,255,.4);
     color:#fff;
     border-radius:3px;
-    padding:0 3px;
-    font-size:10px;
+    padding:0 4px;
+    font-size:11px;
     font-weight:bold;
     cursor:pointer;
     line-height:14px;
+    z-index:10;
   }
   .editor-plus:hover{
-    background:rgba(255,255,255,.6);
+    background:rgba(255,255,255,.8);
     color:#000;
   }
 </style>
@@ -3191,7 +3194,7 @@ function renderEditor(){
   const me = DB.users.find(u=>u.id===session.userId);
   if(!me){ return; }
 
-  // Inicializar el grid con el schedule actual del técnico (o con el del último calendario aprobado)
+  // Inicializar el grid con el schedule actual del técnico
   const currentSchedule = getSchedule(me.id);
   if(!editorGrid){
     editorGrid = scheduleToGrid(currentSchedule);
@@ -3204,28 +3207,78 @@ function renderEditor(){
   deptBadge.textContent = me.dept;
   deptBadge.className = 'badge ' + (me.dept==='NOC'?'noc':'guardia');
 
-  // Construir tabla
+  // Obtener todos los técnicos activos del departamento (incluyendo al logueado)
+  const deptUsers = DB.users.filter(u=>u.dept===me.dept && u.role!=='admin' && u.active);
+  const myColor = getUserColor(me);
+
+  // Leyenda de técnicos
+  const legend = deptUsers.map(u=>{
+    const c = getUserColor(u);
+    const isMe = u.id===me.id;
+    return `<span class="lg"><i style="background:${c}"></i>${u.name}${isMe?' (tú)':''}</span>`;
+  }).join('');
+
+  // Construir encabezado de días
+  const headDays = DAYS.map(d=>`<th class="day-col"><span class="day-name">${d}</span></th>`).join('');
+
+  // Construir filas por hora
   const hours = [];
   for(let h=0; h<24; h++){ hours.push(h); }
-  const c = getUserColor(me);
-
-  const headDays = DAYS.map((d,i)=>`<th class="day-col"><span class="day-name">${d}</span></th>`).join('');
 
   const rows = hours.map(h=>{
+    const hourStr = String(h).padStart(2,'0')+':00';
+    const endStr = String((h+1)%24).padStart(2,'0')+':00';
     const tds = DAYS.map((day,dIdx)=>{
-      const active = editorGrid[dIdx][h];
-      const hourStr = String(h).padStart(2,'0')+':00';
-      const dayHours = editorGrid[dIdx].filter(Boolean).length;
-      const overLimit = dayHours > 12;
-      if(active){
-        return `<td class="editor-cell active" style="background:${c}" onclick="toggleCell(${dIdx},${h})" title="${day} ${hourStr} (clic para quitar)">
-          <span class="editor-plus" onclick="event.stopPropagation();extendCell(${dIdx},${h})" title="Extender 1 hora">+</span>
-        </td>`;
+      const iAmActive = editorGrid[dIdx][h];
+      // Construir bloques de TODOS los técnicos del departamento
+      const blocks = [];
+      deptUsers.forEach(u=>{
+        const isMe = u.id===me.id;
+        // Para el técnico logueado, usar editorGrid; para los demás, su schedule oficial
+        let isActive = false;
+        if(isMe){
+          isActive = iAmActive;
+        } else {
+          const sch = getSchedule(u.id);
+          const seg = (sch && sch[day]) ? sch[day].find(s=>coversHour(s, hourStr)) : null;
+          isActive = !!seg;
+        }
+        if(isActive){
+          const c = getUserColor(u);
+          if(isMe){
+            blocks.push(`<div class="cal-cell-block" style="background:${c};cursor:pointer;outline:2px solid #fff;outline-offset:-2px" onclick="toggleCell(${dIdx},${h})" title="${day} ${hourStr} - Tu turno (clic para quitar)">
+              <span class="ccb-name">${shortName(u.name)}</span>
+              <span class="editor-plus" onclick="event.stopPropagation();extendCell(${dIdx},${h})" title="Extender 1 hora">+</span>
+            </div>`);
+          } else {
+            blocks.push(`<div class="cal-cell-block" style="background:${c};opacity:.5" title="${day} ${hourStr} - ${u.name}">
+              <span class="ccb-name">${shortName(u.name)}</span>
+            </div>`);
+          }
+        }
+      });
+
+      if(blocks.length > 0){
+        // Si yo estoy activo, la celda ya tiene mi bloque con onclick
+        // Si solo hay otros, agregar un overlay clicable para que pueda agregarme
+        if(!iAmActive){
+          return `<td class="editor-cell" onclick="toggleCell(${dIdx},${h})" title="${day} ${hourStr} (clic para agregar tu hora)">${blocks.join('')}<div style="position:absolute;top:0;left:0;right:0;bottom:0;cursor:pointer"></div></td>`;
+        }
+        return `<td class="editor-cell">${blocks.join('')}</td>`;
       } else {
-        return `<td class="editor-cell" onclick="toggleCell(${dIdx},${h})" title="${day} ${hourStr} (clic para agregar)">·</td>`;
+        // Celda vacía: clic para agregarme
+        if(iAmActive){
+          return `<td class="editor-cell" onclick="toggleCell(${dIdx},${h})" title="${day} ${hourStr} (clic para quitar)">
+            <div class="cal-cell-block" style="background:${myColor};cursor:pointer;outline:2px solid #fff;outline-offset:-2px">
+              <span class="ccb-name">${shortName(me.name)}</span>
+              <span class="editor-plus" onclick="event.stopPropagation();extendCell(${dIdx},${h})" title="Extender 1 hora">+</span>
+            </div>
+          </td>`;
+        }
+        return `<td class="editor-cell editor-empty" onclick="toggleCell(${dIdx},${h})" title="${day} ${hourStr} (clic para agregar)">+</td>`;
       }
     }).join('');
-    return `<tr><th>${String(h).padStart(2,'0')}:00 - ${String((h+1)%24).padStart(2,'0')}:00</th>${tds}</tr>`;
+    return `<tr><th>${hourStr} - ${endStr}</th>${tds}</tr>`;
   }).join('');
 
   // Resumen de horas por día
@@ -3238,17 +3291,20 @@ function renderEditor(){
   const totalH = editorGrid.flat().filter(Boolean).length;
 
   document.getElementById('editorCalWrap').innerHTML = `
-    <table class="cal-sched">
-      <thead><tr><th class="time-col">Franja</th>${headDays}</tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+    <div class="legend-schedule">${legend}</div>
+    <div class="cal-table-wrap">
+      <table class="cal-sched">
+        <thead><tr><th class="time-col">Franja</th>${headDays}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 
   document.getElementById('editorFoot').innerHTML = `
     <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
       <span style="color:var(--muted);font-size:12px"><b>Total semanal: ${totalH}h</b></span>
     </div>
     <div style="color:var(--muted);font-size:11px;margin-bottom:6px">${daySummary}</div>
-    <div style="color:var(--muted-2);font-size:11px">Clic en celda para activar/desactivar · Botón + para extender 1 hora · Máximo 12h por día</div>
+    <div style="color:var(--muted-2);font-size:11px">Tus celdas tienen borde blanco · Clic para activar/desactivar · Botón + para extender 1 hora · Máximo 12h por día</div>
   `;
 
   // Alerta si algún día supera 12h
