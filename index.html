@@ -764,6 +764,48 @@
   }
   .cal-cell-block.extension-cell .ccb-name{color:#86efac}
   .cal-cell-block.extension-cell .ccb-sub{color:#bbf7d0}
+
+  /* ---------- EDITOR DE CALENDARIO ---------- */
+  .editor-cell{
+    cursor:pointer;
+    text-align:center;
+    vertical-align:middle;
+    color:var(--muted-2);
+    font-size:12px;
+    transition:.12s;
+    position:relative;
+    min-height:24px;
+    height:24px;
+    user-select:none;
+  }
+  .editor-cell:hover{
+    background:var(--accent-soft)!important;
+    color:var(--accent);
+  }
+  .editor-cell.active{
+    color:#fff;
+    font-weight:500;
+  }
+  .editor-cell.active:hover{
+    opacity:.7;
+  }
+  .editor-plus{
+    position:absolute;
+    top:1px;
+    right:2px;
+    background:rgba(255,255,255,.3);
+    color:#fff;
+    border-radius:3px;
+    padding:0 3px;
+    font-size:10px;
+    font-weight:bold;
+    cursor:pointer;
+    line-height:14px;
+  }
+  .editor-plus:hover{
+    background:rgba(255,255,255,.6);
+    color:#000;
+  }
 </style>
 </head>
 <body>
@@ -893,10 +935,7 @@
           </select>
           <select id="pendTypeFilter" onchange="renderPendientes()">
             <option value="">Todos los tipos</option>
-            <option value="cambio_turno">Cambio de turno</option>
-            <option value="vacaciones">Vacaciones</option>
-            <option value="permiso">Permiso</option>
-            <option value="extension_horario">Extensión de horario</option>
+            <option value="calendario">Propuesta de horario</option>
           </select>
         </div>
       </div>
@@ -958,10 +997,7 @@
         </select>
         <select id="histType" onchange="renderHistorial()">
           <option value="">Todos los tipos</option>
-          <option value="cambio_turno">Cambio de turno</option>
-          <option value="vacaciones">Vacaciones</option>
-          <option value="permiso">Permiso</option>
-          <option value="extension_horario">Extensión de horario</option>
+          <option value="calendario">Propuesta de horario</option>
         </select>
         <button class="btn ghost sm" onclick="clearHistFilters()">Limpiar filtros</button>
       </div>
@@ -1040,180 +1076,32 @@
       </div>
     </section>
 
-    <!-- ============ USER: NUEVA SOLICITUD ============ -->
+    <!-- ============ USER: EDITOR DE CALENDARIO (NUEVA SOLICITUD) ============ -->
     <section class="view" id="view-nueva">
       <div class="page-head">
         <div>
-          <h2>Nueva solicitud</h2>
-          <p>Registra formalmente tu solicitud en lugar de mandarla por WhatsApp.</p>
+          <h2>Proponer horario</h2>
+          <p>Edita tu calendario semanal: clic en una celda para activarla/desactivarla, botón + para extender una hora. Máximo 12 horas por día.</p>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn ghost" onclick="resetEditor()">↺ Restablecer</button>
+          <button class="btn success" onclick="sendDraft()">📤 Enviar borrador al admin</button>
         </div>
       </div>
 
+      <div class="cal-alert" id="editorAlertBox"></div>
+
       <div class="panel">
-        <div class="panel-head"><h3>1 · Tipo de solicitud</h3></div>
+        <div class="panel-head">
+          <h3>🗓️ Editor de horario · <span id="editorUserName">—</span></h3>
+          <span class="badge" id="editorDeptBadge">—</span>
+        </div>
         <div class="panel-body">
-          <div class="radio-row" id="typeRow">
-            <div class="radio-opt selected" data-type="cambio_turno" onclick="selectType('cambio_turno')">
-              <div class="ro-ico cambio">🔁</div>
-              <div class="ro-txt"><b>Cambio de turno</b><small>Intercambio de horario con un compañero</small></div>
-            </div>
-            <div class="radio-opt" data-type="vacaciones" onclick="selectType('vacaciones')">
-              <div class="ro-ico vacaciones">🌴</div>
-              <div class="ro-txt"><b>Vacaciones</b><small>Días libres por descanso programado</small></div>
-            </div>
-            <div class="radio-opt" data-type="permiso" onclick="selectType('permiso')">
-              <div class="ro-ico permiso">📝</div>
-              <div class="ro-txt"><b>Permiso</b><small>Ausencia por horas o un día (cita, trámite)</small></div>
-            </div>
-            <div class="radio-opt" data-type="extension_horario" onclick="selectType('extension_horario')">
-              <div class="ro-ico" style="background:rgba(34,197,94,.15);color:#22c55e">⏱️</div>
-              <div class="ro-txt"><b>Extensión de horario</b><small>Trabajar horas extra para cubrir a un compañero (máx 12h/día)</small></div>
-            </div>
+          <div class="cal-table-wrap" id="editorCalWrap"></div>
+          <div class="cal-table-foot" id="editorFoot">
+            Clic en una celda para activarla (verde) o desactivarla · Botón + para extender 1 hora · Máximo 12h por día
           </div>
         </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head"><h3>2 · Detalle de la solicitud</h3></div>
-        <div class="panel-body">
-          <form id="reqForm" onsubmit="submitRequest(event)">
-            <!-- Cambio de turno -->
-            <div id="fields-cambio_turno" class="form-grid">
-              <div class="field">
-                <label>Fecha origen <span class="req">*</span></label>
-                <input type="date" name="fechaOrigen" required>
-              </div>
-              <div class="field">
-                <label>Turno origen <span class="req">*</span></label>
-                <select name="turnoOrigen" id="turnoOrigenSel" required>
-                  <option value="">Selecciona…</option>
-                </select>
-              </div>
-              <div class="field">
-                <label>Fecha destino <span class="req">*</span></label>
-                <input type="date" name="fechaDestino" required>
-              </div>
-              <div class="field">
-                <label>Turno destino <span class="req">*</span></label>
-                <select name="turnoDestino" id="turnoDestinoSel" required>
-                  <option value="">Selecciona…</option>
-                </select>
-              </div>
-              <div class="field full">
-                <label>Intercambio con (contraparte) <span class="req">*</span></label>
-                <select name="contraparte" required id="contraparteSel">
-                  <option value="">Selecciona compañero…</option>
-                </select>
-              </div>
-              <div class="field full">
-                <label>Motivo <span class="req">*</span></label>
-                <textarea name="motivo" placeholder="Ej. Cita médica, compromiso personal, etc." required></textarea>
-              </div>
-            </div>
-
-            <!-- Vacaciones -->
-            <div id="fields-vacaciones" class="form-grid" style="display:none">
-              <div class="field">
-                <label>Fecha de inicio <span class="req">*</span></label>
-                <input type="date" name="fechaInicio" required>
-              </div>
-              <div class="field">
-                <label>Fecha de regreso <span class="req">*</span></label>
-                <input type="date" name="fechaFin" required>
-              </div>
-              <div class="field full">
-                <label>Días solicitados</label>
-                <input type="text" id="diasVac" readonly placeholder="Se calcula automáticamente">
-              </div>
-              <div class="field full">
-                <label>Motivo / observaciones</label>
-                <textarea name="motivoVac" placeholder="Ej. Vacaciones programadas…"></textarea>
-              </div>
-            </div>
-
-            <!-- Permiso -->
-            <div id="fields-permiso" class="form-grid" style="display:none">
-              <div class="field">
-                <label>Fecha del permiso <span class="req">*</span></label>
-                <input type="date" name="fechaPermiso" required>
-              </div>
-              <div class="field">
-                <label>Duración <span class="req">*</span></label>
-                <select name="duracionPermiso" required>
-                  <option value="">Selecciona…</option>
-                  <option>2 horas</option>
-                  <option>4 horas</option>
-                  <option>Medio día (mañana)</option>
-                  <option>Medio día (tarde)</option>
-                  <option>Día completo</option>
-                </select>
-              </div>
-              <div class="field full">
-                <label>Motivo <span class="req">*</span></label>
-                <textarea name="motivoPerm" placeholder="Ej. Cita médica, trámite bancario, etc." required></textarea>
-              </div>
-            </div>
-
-            <!-- Extensión de horario -->
-            <div id="fields-extension_horario" class="form-grid" style="display:none">
-              <div class="field">
-                <label>Fecha <span class="req">*</span></label>
-                <input type="date" name="fechaExtension" required>
-              </div>
-              <div class="field">
-                <label>Hora de inicio <span class="req">*</span></label>
-                <input type="time" name="horaInicioExt" required>
-              </div>
-              <div class="field">
-                <label>Hora de fin <span class="req">*</span></label>
-                <input type="time" name="horaFinExt" required>
-              </div>
-              <div class="field full">
-                <label>Motivo <span class="req">*</span></label>
-                <textarea name="motivoExt" placeholder="Ej. Cubrir vacaciones de compañero, jornada extendida, etc." required></textarea>
-              </div>
-              <div class="field full">
-                <small style="color:var(--muted-2);font-size:11px">⚠️ Las horas de extensión sumadas a tu turno regular no pueden superar las 12 horas en el día.</small>
-              </div>
-            </div>
-
-            <div class="form-actions">
-              <button type="button" class="btn ghost" onclick="document.getElementById('reqForm').reset();selectType(currentType)">Limpiar</button>
-              <button type="submit" class="btn success">Enviar solicitud</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </section>
-
-    <!-- ============ USER: MI CALENDARIO BORRADOR ============ -->
-    <section class="view" id="view-borrador">
-      <div class="page-head">
-        <div>
-          <h2>Mi calendario borrador</h2>
-          <p>Crea solicitudes visualmente. Los cambios se ven aquí primero; cuando el admin los aprueba, se reflejan en el calendario oficial.</p>
-        </div>
-        <div class="cal-mode-toggle" id="borradorModeToggle" style="margin-left:auto"></div>
-      </div>
-
-      <div class="cal-toolbar">
-        <div class="week-info" id="borradorWeekInfo"></div>
-        <div class="nav-btns">
-          <button class="btn ghost sm" onclick="borradorNav(-1)">← Semana anterior</button>
-          <button class="btn secondary sm" onclick="borradorNav(0)">Hoy</button>
-          <button class="btn ghost sm" onclick="borradorNav(1)">Semana siguiente →</button>
-        </div>
-      </div>
-
-      <div class="cal-alert" id="borradorAlertBox" style="display:none"></div>
-
-      <div id="borradorPanels"></div>
-
-      <div class="panel" style="margin-top:20px">
-        <div class="panel-head">
-          <h3>Mis solicitudes en borrador</h3>
-        </div>
-        <div class="panel-body" id="borradorReqBody"></div>
       </div>
     </section>
 
@@ -1544,8 +1432,8 @@ let myFilter = 'todas';
 // No se persisten en localStorage ni en Firestore.
 let adminCreds = null;
 
-const TYPE_LABEL = {cambio_turno:'Cambio de turno', vacaciones:'Vacaciones', permiso:'Permiso', extension_horario:'Extensión de horario'};
-const TYPE_ICO = {cambio_turno:'🔁', vacaciones:'🌴', permiso:'📝', extension_horario:'⏱️'};
+const TYPE_LABEL = {calendario:'Propuesta de horario'};
+const TYPE_ICO = {calendario:'🗓️'};
 
 /* ===================== LOGIN ===================== */
 let pendingRole = null; // rol seleccionado en la pantalla de login
@@ -1744,7 +1632,7 @@ function buildTabs(){
   nav.innerHTML='';
   const tabs = session.role==='admin'
     ? [['resumen','📊 Resumen'],['pendientes','⏳ Pendientes'],['horario','🗓️ Horario'],['historial','📋 Historial'],['usuarios','👥 Usuarios']]
-    : [['nueva','➕ Nueva solicitud'],['borrador','📝 Mi borrador'],['mias','🗂️ Mis solicitudes'],['horario','🗓️ Mi horario']];
+    : [['nueva','✏️ Proponer horario'],['mias','🗂️ Mis solicitudes'],['horario','🗓️ Mi horario']];
   tabs.forEach(([k,l])=>{
     const b=document.createElement('button');
     b.className='tab';b.textContent=l;b.dataset.tab=k;
@@ -1764,8 +1652,7 @@ function go(view){
   if(view==='horario') renderHorario();
   if(view==='historial') renderHistorial();
   if(view==='usuarios') renderUsuarios();
-  if(view==='nueva'){ selectType('cambio_turno'); populateContraparte(); populateShifts(); }
-  if(view==='borrador') renderBorrador();
+  if(view==='nueva') renderEditor();
   if(view==='mias') renderMyRequests();
 }
 
@@ -1804,13 +1691,12 @@ function renderResumen(){
 function deptClass(d){ return d==='NOC'?'noc':d==='Guardias'?'guardia':'admin'; }
 function fmtDate(s){ return s? s.replace('T',' '):'—'; }
 function detailSummary(r){
-  if(r.type==='cambio_turno'){
-    const c = DB.users.find(u=>u.id===r.contraparte);
-    return `${r.fechaOrigen} → ${r.fechaDestino} · con ${c?c.name:'—'}`;
+  if(r.type==='calendario'){
+    // Resumen de horas por día para la propuesta de horario
+    const sch = r.schedule || {};
+    const totalH = DAYS.reduce((acc,d)=>acc + (sch[d]||[]).reduce((a,s)=>a+shiftHours(s),0), 0);
+    return `Propuesta semanal · ${totalH}h totales`;
   }
-  if(r.type==='vacaciones') return `${r.fechaInicio} → ${r.fechaFin}`;
-  if(r.type==='permiso') return `${r.fechaPermiso} · ${r.duracionPermiso}`;
-  if(r.type==='extension_horario') return `${r.fechaExtension} · ${r.horaInicioExt}-${r.horaFinExt}`;
   return '—';
 }
 function emptyRow(cols,msg){
@@ -1837,39 +1723,20 @@ function renderPendientes(){
 function renderReqCard(r){
   const u = DB.users.find(x=>x.id===r.requesterId)||{name:'?',dept:r.dept};
   let detail = '';
-  if(r.type==='cambio_turno'){
-    const c = DB.users.find(u=>u.id===r.contraparte);
-    detail = `
-      <div class="req-meta">
-        <span>📅 Origen: <b style="color:var(--text)">${r.fechaOrigen}</b> · ${r.turnoOrigen}</span>
-        <span>📅 Destino: <b style="color:var(--text)">${r.fechaDestino}</b> · ${r.turnoDestino}</span>
-        <span>🔁 Intercambio con: <b style="color:var(--text)">${c?c.name:'—'}</b></span>
-      </div>`;
-  } else if(r.type==='vacaciones'){
-    const days = diffDays(r.fechaInicio,r.fechaFin);
-    detail = `<div class="req-meta">
-      <span>📅 Inicio: <b style="color:var(--text)">${r.fechaInicio}</b></span>
-      <span>📅 Regreso: <b style="color:var(--text)">${r.fechaFin}</b></span>
-      <span>🗓️ Días: <b style="color:var(--text)">${days}</b></span>
-    </div>`;
-  } else if(r.type==='permiso'){
-    detail = `<div class="req-meta">
-      <span>📅 Fecha: <b style="color:var(--text)">${r.fechaPermiso}</b></span>
-      <span>⏱️ Duración: <b style="color:var(--text)">${r.duracionPermiso}</b></span>
-    </div>`;
-  } else if(r.type==='extension_horario'){
-    detail = `<div class="req-meta">
-      <span>📅 Fecha: <b style="color:var(--text)">${r.fechaExtension}</b></span>
-      <span>⏱️ Horas: <b style="color:var(--text)">${r.horaInicioExt} - ${r.horaFinExt}</b></span>
-    </div>`;
+  if(r.type==='calendario'){
+    const sch = r.schedule || {};
+    const dayHours = DAYS.map(d=>{
+      const h = (sch[d]||[]).reduce((a,s)=>a+shiftHours(s),0);
+      return h>0 ? `${d.slice(0,3)}: ${h}h` : null;
+    }).filter(Boolean);
+    detail = `<div class="req-meta"><span>📅 Propuesta semanal: <b style="color:var(--text)">${dayHours.join(' · ')||'Sin horas'}</b></span></div>`;
   }
-  const reason = r.motivo||r.motivoVac||r.motivoPerm||r.motivoExt;
+  const reason = r.motivo || r.comments || '';
   const resol = r.resolvedAt ? `<div class="req-resol">Resuelto el ${r.resolvedAt} por ${resolverName(r.resolvedBy)} · ${r.comments?'Comentario: '+r.comments:''}</div>` : '';
-  const calBtn = (r.status==='aprobada' && r.type!=='rechazada')
-    ? `<button class="btn secondary sm" onclick="viewInHorario('${r.id}')">📅 Ver en calendario</button>`
+  const calBtn = (r.status==='aprobada')
+    ? `<button class="btn secondary sm" onclick="go('horario')">📅 Ver en calendario</button>`
     : '';
   let actions = '';
-  // --- ADMIN: ver/editar/eliminar en CUALQUIER estado ---
   if(session.role==='admin'){
     actions = `<div class="req-actions">
       ${r.status==='pendiente' ? `<button class="btn success sm" onclick="resolveReq('${r.id}','aprobada')">✓ Aprobar</button><button class="btn danger sm" onclick="resolveReq('${r.id}','rechazada')">✕ Rechazar</button>` : ''}
@@ -1878,28 +1745,24 @@ function renderReqCard(r){
       <button class="btn danger sm" onclick="deleteRequest('${r.id}')">🗑 Eliminar</button>
       ${calBtn}
     </div>`;
-  }
-  // --- Técnico viendo SUS solicitudes (no aprobadas): editar/eliminar ---
-  else if(r.requesterId===session.userId && r.status!=='aprobada'){
+  } else if(r.requesterId===session.userId && r.status!=='aprobada'){
     actions = `<div class="req-actions">
       <button class="btn ghost sm" onclick="viewReq('${r.id}')">Ver detalle</button>
       <button class="btn sm" onclick="editRequest('${r.id}')">✎ Editar</button>
       <button class="btn danger sm" onclick="deleteRequest('${r.id}')">🗑 Eliminar</button>
     </div>`;
-  }
-  // --- Técnico viendo sus solicitudes aprobadas ---
-  else if(r.requesterId===session.userId && r.status==='aprobada'){
+  } else if(r.requesterId===session.userId && r.status==='aprobada'){
     actions = `<div class="req-actions">
       <button class="btn ghost sm" onclick="viewReq('${r.id}')">Ver detalle</button>
       ${calBtn}
     </div>`;
   }
   return `<div class="req-card">
-    <div class="req-ico ${r.type}">${TYPE_ICO[r.type]}</div>
+    <div class="req-ico" style="background:rgba(59,130,246,.15);color:#60a5fa">${TYPE_ICO[r.type]||'📋'}</div>
     <div class="req-body">
       <div class="req-top">
         <div>
-          <div class="ttl">${TYPE_LABEL[r.type]} <small>· ${u.name} · <span class="badge dept">${r.dept}</span></small></div>
+          <div class="ttl">${TYPE_LABEL[r.type]||r.type} <small>· ${u.name} · <span class="badge dept">${r.dept}</span></small></div>
           <div style="color:var(--muted-2);font-size:11.5px">Solicitado el ${r.createdAt}</div>
         </div>
         <span class="badge ${r.status}"><span class="bdot"></span>${r.status}</span>
@@ -1990,46 +1853,32 @@ function resolveReq(id,status){
   const isApprove = (status==='aprobada');
   const solicitante = reqUserName(r);
 
-  // === FASE 3: Detección de choques antes de aprobar ===
-  // Si se va a aprobar, verificamos si la solicitud choca con otras aprobadas
-  // del mismo técnico. Si hay choque, mostramos una alerta y damos opciones.
-  if(isApprove){
-    const conflicts = detectConflicts(r);
+  // === Detección de choques entre borradores pendientes ===
+  // Solo se alerta cuando hay 2+ borradores pendientes que chocan entre sí.
+  // El calendario original (oficial) NO genera alertas.
+  if(isApprove && r.type==='calendario'){
+    const conflicts = detectCalendarConflicts(r);
     if(conflicts.length > 0){
-      // Mostrar alerta de choque y opciones al admin
-      const conflictList = conflicts.map(c=>`<li style="margin-bottom:4px"><b>${fmtDayLabel(c.fecha)}:</b> ${c.detalle}</li>`).join('');
-      openModal('⚠️ Choque detectado',
-        `<p style="margin-bottom:10px">Estás por aprobar la solicitud de <b>${solicitante}</b> (${TYPE_LABEL[r.type]}), pero se detectaron <b>${conflicts.length} choque(s)</b> con otras solicitudes ya aprobadas para el mismo técnico:</p>
+      const conflictList = conflicts.map(c=>`<li style="margin-bottom:4px"><b>${c.otrosUsuario}</b> (${c.otrosDia}): ${c.detalle}</li>`).join('');
+      openModal('⚠️ Choque entre borradores detectado',
+        `<p style="margin-bottom:10px">Estás por aprobar la propuesta de <b>${solicitante}</b>, pero hay <b>${conflicts.length} choque(s)</b> con OTRAS propuestas de horario pendientes:</p>
          <ul style="margin:0 0 14px 18px;padding:0;font-size:12.5px;line-height:1.6;color:var(--danger)">${conflictList}</ul>
-         <p style="color:var(--muted);font-size:12.5px;margin-bottom:10px">¿Qué deseas hacer?</p>`,
+         <p style="color:var(--muted);font-size:12.5px;margin-bottom:10px">El calendario original no genera alertas. Solo los borradores pendientes entran en esta validación.</p>`,
         [
           {label:'Cancelar', cls:'ghost', onclick:closeModal},
           {label:'Pedir cambio al técnico', cls:'secondary', onclick:()=>{
-            // Marcar la solicitud como "rechazada" con un comentario pidiendo cambio
             r.status = 'rechazada';
             r.resolvedAt = nowStr();
             r.resolvedBy = session.userId;
-            r.comments = 'Solicitud rechazada por choque con otra aprobada. Por favor modifica las fechas/horas y vuelve a enviarla. Choques: ' + conflicts.map(c=>`${fmtDayLabel(c.fecha)} (${c.detalle})`).join('; ');
+            r.comments = 'Propuesta rechazada por choque con otra propuesta pendiente. Choques: ' + conflicts.map(c=>`${c.otrosUsuario} (${c.otrosDia})`).join('; ');
             saveRequest(r);
             closeModal();
-            toast('Solicitud rechazada con comentarios para que el técnico la modifique.','warn');
+            toast('Propuesta rechazada con comentarios.','warn');
             renderPendientes(); renderResumen();
           }},
           {label:'Aprobar de todos modos', cls:'danger', onclick:()=>{
-            // Aprobar a pesar del choque (el admin asume la responsabilidad)
             closeModal();
-            // Continuar con el flujo normal de aprobación
-            // Para vacaciones/permiso pediremos cobertura; para otros, aprobamos directo
-            if(r.type==='vacaciones' || r.type==='permiso'){
-              resolveReqContinue(id, status);
-            } else {
-              r.status = 'aprobada';
-              r.resolvedAt = nowStr();
-              r.resolvedBy = session.userId;
-              saveRequest(r);
-              toast('Solicitud aprobada (con choque) a pesar de la advertencia.','warn');
-              renderPendientes(); renderResumen();
-            }
+            approveCalendarDraft(r);
           }}
         ]
       );
@@ -2038,137 +1887,74 @@ function resolveReq(id,status){
   }
 
   // Si no hay choque (o es rechazo), continuar con el flujo normal
-  resolveReqContinue(id, status);
-}
-
-// Continuación del flujo de aprobación/rechazo (extraída para poder saltarse
-// la verificación de choques cuando el admin decide aprobar de todos modos).
-function resolveReqContinue(id, status){
-  const r = DB.requests.find(x=>x.id===id);
-  if(!r) return;
-  const isApprove = (status==='aprobada');
-  const solicitante = reqUserName(r);
-
-  // Aprobación de vacaciones o días libres (permiso): el admin debe indicar quién cubre cada día
-  if(isApprove && (r.type==='vacaciones' || r.type==='permiso')){
-    const solicitanteUser = DB.users.find(x=>x.id===r.requesterId);
-    const dept = solicitanteUser ? solicitanteUser.dept : r.dept;
-    // SOLO técnicos del mismo departamento, activos, que NO sean quien pidió el día
-    const candidates = DB.users.filter(u=>u.dept===dept && u.role!=='admin' && u.active && u.id!==r.requesterId);
-    const allDates = datesOfRequest(r);
-    const workDates = allDates.filter(d=>userHasShiftOnDate(r.requesterId,d));
-    const freeDates = allDates.filter(d=>!userHasShiftOnDate(r.requesterId,d));
-
-    const fechasStr = r.type==='vacaciones'
-      ? `${r.fechaInicio} al ${r.fechaFin}`
-      : `${r.fechaPermiso} (${r.duracionPermiso||''})`;
-
-    const optionsFor = (d)=>{
-      const absent = new Set(candidates.filter(u=>isUserAbsentOnDate(u.id,d,r.id)).map(u=>u.id));
-      const someAvailable = candidates.some(u=>!absent.has(u.id));
-      return '<option value="">Selecciona un técnico…</option>' + candidates.map(u=>{
-        const isAbs = absent.has(u.id);
-        const disabled = isAbs && someAvailable; // si nadie está libre, se permite elegir (con aviso)
-        return `<option value="${u.id}" ${disabled?'disabled':''}>${u.name}${isAbs?' — ausente ese día':''}</option>`;
-      }).join('');
-    };
-
-    let coverHtml = '';
-    if(candidates.length===0){
-      coverHtml = `<div style="background:rgba(239,68,68,.12);border-left:3px solid var(--danger);padding:10px 14px;border-radius:7px;font-size:12.5px">No hay otros técnicos activos en ${dept} que puedan cubrir.</div>`;
-    } else if(workDates.length===0){
-      coverHtml = `<div style="background:var(--bg-2);border-left:3px solid var(--muted-2);padding:10px 14px;border-radius:7px;font-size:12.5px;color:var(--muted)">${solicitante} no tiene turnos programados en esas fechas, por lo que no se necesita cobertura.</div>`;
-    } else {
-      const bulk = workDates.length>1 ? `
-        <div class="field" style="margin-bottom:12px">
-          <label>Aplicar el mismo técnico a todos los días</label>
-          <select id="coverAll" onchange="applyCoverAll(this.value)">
-            <option value="">Elegir uno para todos…</option>
-            ${candidates.map(u=>`<option value="${u.id}">${u.name}</option>`).join('')}
-          </select>
-        </div>` : '';
-      coverHtml = `${bulk}
-        <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow:auto;padding-right:4px">
-          ${workDates.map(d=>`
-            <div style="display:grid;grid-template-columns:1fr 1.3fr;gap:10px;align-items:center;background:var(--bg-2);border:1px solid var(--border-soft);border-radius:8px;padding:8px 10px">
-              <div style="font-size:12.5px"><b style="color:var(--text)">${fmtDayLabel(d)}</b><div style="color:var(--muted-2);font-size:11px">Turno: ${shiftsTextOnDate(r.requesterId,d)}</div></div>
-              <select class="coverDay" data-date="${d}" onchange="updateCoverSummary()">${optionsFor(d)}</select>
-            </div>`).join('')}
-        </div>
-        ${freeDates.length?`<div style="color:var(--muted-2);font-size:11px;margin-top:8px">Días sin turno programado (no necesitan cobertura): ${freeDates.map(fmtDayLabel).join(', ')}.</div>`:''}
-        <small style="color:var(--muted-2);font-size:11px;display:block;margin-top:8px">Solo aparecen técnicos activos del departamento ${dept}; ${solicitante} no aparece en la lista.</small>`;
-    }
-
-    openModal(
-      `Aprobar ${TYPE_LABEL[r.type]} · ${solicitante}`,
-      `<p style="margin-bottom:14px;color:var(--muted)">Vas a <b style="color:var(--success)">aprobar</b> la solicitud de <b>${solicitante}</b> (${TYPE_LABEL[r.type]}) para: <b style="color:var(--text)">${fechasStr}</b>.</p>
-       <div style="background:rgba(245,158,11,.12);border-left:3px solid var(--warning);padding:12px 14px;border-radius:7px;margin-bottom:14px;font-size:12.5px;color:#fde68a">
-         ⚠️ <b>Atención:</b> ${solicitante} no estará disponible. Debes indicar <b style="color:var(--text)">quién cubre${workDates.length>1?' cada día':' ese día'}</b> a ${solicitante}.
-       </div>
-       ${coverHtml}
-       <div id="coverSummary" data-who="${solicitante}" style="background:rgba(245,158,11,.08);border:1px dashed var(--warning);border-radius:8px;padding:10px 14px;margin-top:14px;font-size:12.5px;color:#fde68a${workDates.length&&candidates.length?'':';display:none'}"></div>
-       <div class="field" style="margin-top:14px">
-         <label>Comentario / justificación (opcional)</label>
-         <textarea id="resolComment" placeholder="Ej. Coordinar cobertura con… / Cambios de turno ya asignados…"></textarea>
-       </div>`,
-      [
-        {label:'Cancelar',cls:'ghost',onclick:closeModal},
-        {label:'Aprobar y asignar cobertura',cls:'success',onclick:()=>{
-          const needsCover = workDates.length>0 && candidates.length>0;
-          const map = {};
-          if(needsCover){
-            const selects=[...document.querySelectorAll('.coverDay')];
-            const missing = selects.find(sel=>!sel.value);
-            if(missing){
-              toast(`Falta indicar quién cubre el ${fmtDayLabel(missing.dataset.date)}`,'err');
-              return;
-            }
-            selects.forEach(sel=>{ map[sel.dataset.date]=sel.value; });
-          }
-          r.status='aprobada'; r.resolvedAt=nowStr(); r.resolvedBy=session.userId;
-          r.cubiertoPorDia = map;
-          const ids = Object.values(map);
-          r.cubiertoPor = ids.length ? ids[0] : null;   // compatibilidad con el campo anterior
-          r.comments = document.getElementById('resolComment').value.trim();
-          saveRequest(r); closeModal();
-          const names = [...new Set(ids.map(userNameById))];
-          toast(names.length?`Solicitud aprobada. Cubre: ${names.join(', ')}`:'Solicitud aprobada','ok');
-          renderPendientes(); renderResumen();
-        }}
-      ]
-    );
-    updateCoverSummary();
+  if(isApprove && r.type==='calendario'){
+    approveCalendarDraft(r);
     return;
   }
 
-  // Cambio de turno o rechazo
-  let cambioInfo = '';
-  if(r.type==='cambio_turno'){
-    const contra = userNameById(r.contraparte);
-    const sameDay = r.fechaOrigen===r.fechaDestino;
-    cambioInfo = `<div style="background:rgba(168,85,247,.12);border-left:3px solid #a78bfa;padding:10px 14px;border-radius:7px;margin-bottom:14px;font-size:12.5px;color:#ddd6fe">
-      ℹ️ Al aprobar, el cambio se verá en el calendario <b style="color:var(--text)">únicamente ${sameDay?'el día':'en los días'} solicitado${sameDay?'':'s'}</b> (${sameDay?fmtDayLabel(r.fechaOrigen):fmtDayLabel(r.fechaOrigen)+' y '+fmtDayLabel(r.fechaDestino)}); el resto de las semanas no cambia.
-      <ul style="margin:8px 0 0 18px;padding:0;line-height:1.6">
-        <li><b style="color:var(--text)">${fmtDayLabel(r.fechaOrigen)}</b>: ${solicitante} cede «${r.turnoOrigen}» y lo hace ${contra}.</li>
-        <li><b style="color:var(--text)">${fmtDayLabel(r.fechaDestino)}</b>: ${contra} cede «${r.turnoDestino}» y lo hace ${solicitante}.</li>
-      </ul></div>`;
-  }
-  openModal(
-    status==='aprobada'?'Aprobar solicitud':'Rechazar solicitud',
-    `<p style="margin-bottom:14px;color:var(--muted)">Vas a <b style="color:${status==='aprobada'?'var(--success)':'var(--danger)'}">${status==='aprobada'?'aprobar':'rechazar'}</b> la solicitud de <b>${solicitante}</b> (${TYPE_LABEL[r.type]}).</p>
-     ${isApprove ? cambioInfo : ''}
-     <div class="field"><label>Comentario / justificación (opcional)</label><textarea id="resolComment" placeholder="Ej. Coordinar cobertura con… / No hay personal disponible…"></textarea></div>`,
-    [
-      {label:'Cancelar',cls:'ghost',onclick:closeModal},
-      {label:'Confirmar',cls:isApprove?'success':'danger',onclick:()=>{
-        r.status=status; r.resolvedAt=nowStr(); r.resolvedBy=session.userId;
-        r.comments = document.getElementById('resolComment').value.trim();
-        saveRequest(r); closeModal(); toast('Solicitud '+(isApprove?'aprobada':'rechazada'),'ok');
-        renderPendientes(); renderResumen();
-      }}
-    ]
-  );
+  // Para otros tipos (no calendario), rechazo directo
+  r.status = status;
+  r.resolvedAt = nowStr();
+  r.resolvedBy = session.userId;
+  saveRequest(r);
+  closeModal();
+  toast('Solicitud ' + (isApprove ? 'aprobada' : 'rechazada'), 'ok');
+  renderPendientes(); renderResumen();
 }
+
+// Aprueba un borrador de calendario: reemplaza el schedule oficial del técnico
+function approveCalendarDraft(r){
+  const u = DB.users.find(x=>x.id===r.requesterId);
+  if(!u){ toast('Usuario no encontrado','err'); return; }
+  // Reemplazar el schedule oficial del técnico con el del borrador
+  u.schedule = r.schedule;
+  // Guardar en Firestore
+  saveUser(u);
+  // Marcar la solicitud como aprobada
+  r.status = 'aprobada';
+  r.resolvedAt = nowStr();
+  r.resolvedBy = session.userId;
+  saveRequest(r);
+  toast('Propuesta de horario aprobada. El calendario oficial ha sido actualizado.','ok');
+  renderPendientes(); renderResumen();
+  // Re-renderizar horario si está activo
+  const horView = document.getElementById('view-horario');
+  if(horView && horView.classList.contains('active')) renderHorario();
+}
+
+// Detecta choques entre borradores de calendario PENDIENTES (no con el oficial).
+// Devuelve array de conflictos: {otrosUsuario, otrosDia, detalle}
+function detectCalendarConflicts(req){
+  const conflicts = [];
+  if(!req || req.type!=='calendario' || !req.schedule) return conflicts;
+  // Buscar OTROS borradores pendientes del mismo departamento
+  const otherDrafts = DB.requests.filter(r=>
+    r.id !== req.id &&
+    r.type === 'calendario' &&
+    r.status === 'pendiente' &&
+    r.dept === req.dept &&
+    r.requesterId !== req.requesterId &&
+    r.schedule
+  );
+  // Para cada día, comparar horas activas
+  DAYS.forEach(day=>{
+    const myHours = scheduleHoursForDay(req.schedule, day);
+    otherDrafts.forEach(other=>{
+      const otherHours = scheduleHoursForDay(other.schedule, day);
+      const overlap = myHours.filter(h => otherHours.includes(h));
+      if(overlap.length > 0){
+        const otherUser = DB.users.find(u=>u.id===other.requesterId);
+        conflicts.push({
+          otrosUsuario: otherUser ? otherUser.name : 'Desconocido',
+          otrosDia: day,
+          detalle: `Horas en conflicto: ${overlap.map(h=>String(h).padStart(2,'0')+':00').join(', ')}`
+        });
+      }
+    });
+  });
+  return conflicts;
+}
+
 function reqUserName(r){ const u=DB.users.find(x=>x.id===r.requesterId); return u?u.name:'—'; }
 
 function viewReq(id){
@@ -2177,36 +1963,22 @@ function viewReq(id){
   let rows = [];
   rows.push(['Solicitante',u.name||'—']);
   rows.push(['Departamento',r.dept]);
-  rows.push(['Tipo',TYPE_LABEL[r.type]]);
-  if(r.type==='cambio_turno'){
-    rows.push(['Fecha origen',r.fechaOrigen]); rows.push(['Turno origen',r.turnoOrigen]);
-    rows.push(['Fecha destino',r.fechaDestino]); rows.push(['Turno destino',r.turnoDestino]);
-    const c=DB.users.find(u=>u.id===r.contraparte);
-    rows.push(['Intercambio con',c?c.name:'—']);
+  rows.push(['Tipo',TYPE_LABEL[r.type]||r.type]);
+  if(r.type==='calendario' && r.schedule){
+    DAYS.forEach(d=>{
+      const segs = r.schedule[d]||[];
+      const h = segs.reduce((a,s)=>a+shiftHours(s),0);
+      rows.push([d, segs.length>0 ? `${segs.join(', ')} (${h}h)` : 'Descanso']);
+    });
+    const totalH = DAYS.reduce((acc,d)=>acc + (r.schedule[d]||[]).reduce((a,s)=>a+shiftHours(s),0), 0);
+    rows.push(['Total semanal', `${totalH}h`]);
   }
-  if(r.type==='vacaciones'){
-    rows.push(['Fecha inicio',r.fechaInicio]); rows.push(['Fecha regreso',r.fechaFin]);
-    rows.push(['Días',diffDays(r.fechaInicio,r.fechaFin)]);
-  }
-  if(r.type==='permiso'){
-    rows.push(['Fecha',r.fechaPermiso]); rows.push(['Duración',r.duracionPermiso]);
-  }
-  if(r.type==='extension_horario'){
-    rows.push(['Fecha',r.fechaExtension]); rows.push(['Hora inicio',r.horaInicioExt]); rows.push(['Hora fin',r.horaFinExt]);
-  }
-  const reason = r.motivo||r.motivoVac||r.motivoPerm||r.motivoExt;
-  rows.push(['Motivo',reason||'—']);
+  rows.push(['Motivo', r.motivo||'—']);
   rows.push(['Creada',r.createdAt]);
   if(r.updatedAt) rows.push(['Actualizada',r.updatedAt]);
   if(r.resolvedAt){
     rows.push(['Resuelta',r.resolvedAt]);
     rows.push(['Por',resolverName(r.resolvedBy)]);
-    if(r.cubiertoPorDia && Object.keys(r.cubiertoPorDia).length){
-      rows.push(['Cobertura', Object.keys(r.cubiertoPorDia).sort().map(d=>`${fmtDayLabel(d)}: ${userNameById(r.cubiertoPorDia[d])}`).join(' · ')]);
-    } else if(r.cubiertoPor){
-      const cover = DB.users.find(x=>x.id===r.cubiertoPor);
-      rows.push(['Cubierto por', cover?cover.name:'—']);
-    }
     rows.push(['Comentario',r.comments||'—']);
   }
   openModal('Detalle de solicitud',
@@ -2471,18 +2243,8 @@ function fmtCalDate(d){
 
 // Verifica si una solicitud toca la semana objetivo
 function overlapsWeek(r, weekDates){
-  const start = new Date(weekDates[0]); start.setHours(0,0,0,0);
-  const end = new Date(weekDates[6]); end.setHours(23,59,59,999);
-  const inRange = (dStr)=>{ if(!dStr) return false; const d=new Date(dStr+'T00:00:00'); return d>=start && d<=end; };
-  if(r.type==='vacaciones'){
-    if(!r.fechaInicio || !r.fechaFin) return false;
-    const fi=new Date(r.fechaInicio+'T00:00:00');
-    const ff=new Date(r.fechaFin+'T23:59:59');
-    return fi<=end && ff>=start;
-  }
-  if(r.type==='permiso') return inRange(r.fechaPermiso);
-  if(r.type==='cambio_turno') return inRange(r.fechaOrigen) || inRange(r.fechaDestino);
-  if(r.type==='extension_horario') return inRange(r.fechaExtension);
+  // Las propuestas de calendario son semanales, así que siempre afectan cualquier semana
+  if(r.type==='calendario') return true;
   return false;
 }
 
@@ -2698,10 +2460,11 @@ function renderHistorial(){
 
 // Devuelve las fechas relevantes de una solicitud para el filtro por rango
 function relevantDates(r){
-  if(r.type==='vacaciones') return [r.fechaInicio, r.fechaFin].filter(Boolean);
-  if(r.type==='permiso') return [r.fechaPermiso].filter(Boolean);
-  if(r.type==='cambio_turno') return [r.fechaOrigen, r.fechaDestino].filter(Boolean);
-  if(r.type==='extension_horario') return [r.fechaExtension].filter(Boolean);
+  // Para propuestas de calendario (semanales), usamos la fecha de creación
+  if(r.type==='calendario'){
+    if(r.createdAt) return [r.createdAt.split(' ')[0]];
+    return [];
+  }
   if(r.createdAt) return [r.createdAt.split(' ')[0]];
   return [];
 }
@@ -3336,132 +3099,271 @@ function deleteUser(id){
   );
 }
 
-/* ===================== USER: NUEVA SOLICITUD ===================== */
-function selectType(t){
-  currentType=t;
-  document.querySelectorAll('#typeRow .radio-opt').forEach(el=>el.classList.toggle('selected',el.dataset.type===t));
-  ['cambio_turno','vacaciones','permiso','extension_horario'].forEach(k=>{
-    const box=document.getElementById('fields-'+k);
-    box.style.display = k===t?'grid':'none';
-    box.querySelectorAll('[required]').forEach(f=> f.required = (k===t));
-  });
-  // auto-calc días vacaciones
-  if(t==='vacaciones'){
-    const fi=document.querySelector('[name=fechaInicio]');
-    const ff=document.querySelector('[name=fechaFin]');
-    const upd=()=>{ if(fi.value&&ff.value) document.getElementById('diasVac').value=diffDays(fi.value,ff.value)+' día(s)'; };
-    fi.onchange=upd; ff.onchange=upd;
-  }
-  // Aplicar restriccion de fechas pasadas a TODOS los inputs date del formulario
-  applyNoPastDatesConstraint();
+/* ===================== EDITOR DE CALENDARIO (PROponer HORARIO) ===================== */
+
+// Devuelve cuántas horas dura un turno "HH:00-HH:00"
+function shiftHours(seg){
+  const m = (seg||'').match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
+  if(!m) return 0;
+  let sh = parseInt(m[1],10), sm = parseInt(m[2],10);
+  let eh = parseInt(m[3],10), em = parseInt(m[4],10);
+  let start = sh*60 + sm;
+  let end = eh*60 + em;
+  if(end <= start) end += 24*60; // cruzó medianoche
+  return (end - start) / 60;
 }
 
-function populateContraparte(){
-  const sel=document.getElementById('contraparteSel');
-  if(!sel) return;
-  const me = session? DB.users.find(u=>u.id===session.userId):null;
-  const peers = DB.users.filter(u=>u.dept===(me?me.dept:'') && u.id!==session.userId && u.role!=='admin' && u.active);
-  sel.innerHTML='<option value="">Selecciona compañero…</option>'+peers.map(u=>`<option value="${u.id}">${u.name} · ${u.dept}</option>`).join('');
-}
-
-// Extrae el rango horario de un string de turno (ej: "Noche (00:00 - 07:00)" -> "00:00-07:00")
-function extractTimeRange(str){
-  const m = (str||'').match(/(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})/);
-  return m ? `${m[1]}-${m[2]}` : null;
-}
-
-// Devuelve los turnos del dropdown que el usuario realmente tiene en su horario
-function getAvailableShiftsForUser(userId){
-  const sch = getSchedule(userId);
-  if(!sch) return [];
-  const u = DB.users.find(x=>x.id===userId);
-  const dept = u? u.dept : 'NOC';
-  const allShifts = SHIFTS[dept] || [];
-  // Extraer los rangos que el usuario tiene en su horario
-  const userRanges = new Set();
-  Object.values(sch).forEach(segs => {
-    segs.forEach(seg => {
-      const r = extractTimeRange(seg);
-      if(r) userRanges.add(r);
+// Convierte un schedule {Lunes:['00:00-05:00',...],...} a un grid 2D [dayIdx][hour] = true/false
+function scheduleToGrid(schedule){
+  const grid = [];
+  for(let d=0; d<7; d++){
+    grid.push(new Array(24).fill(false));
+    const day = DAYS[d];
+    const segs = (schedule && schedule[day]) || [];
+    segs.forEach(seg=>{
+      const m = seg.match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
+      if(m){
+        let sh = parseInt(m[1],10), eh = parseInt(m[3],10);
+        // Solo marcamos horas dentro del mismo día (0-23). Si el turno cruza medianoche,
+        // solo marcamos hasta las 23:00 (no pasamos al día siguiente en el editor).
+        if(eh <= sh) eh = 24; // cruzó medianoche -> terminar a las 24
+        for(let h=sh; h<eh && h<24; h++){
+          grid[d][h] = true;
+        }
+      }
     });
-  });
-  // Filtrar los turnos del dropdown cuyo rango coincide con alguno del usuario
-  return allShifts.filter(shift => {
-    const r = extractTimeRange(shift);
-    return r && userRanges.has(r);
-  });
+  }
+  return grid;
 }
 
-function populateShifts(){
-  const me = session? DB.users.find(u=>u.id===session.userId):null;
-  const dept = me? me.dept : 'NOC';
-  const allShifts = SHIFTS[dept] || SHIFTS.NOC;
-  // Ambos dropdowns (origen y destino) muestran todos los turnos del departamento,
-  // basados en el horario del calendario.
-  const fill = (sel)=>{
-    if(!sel) return;
-    const cur = sel.value;
-    sel.innerHTML = '<option value="">Selecciona…</option>' + allShifts.map(s=>`<option>${s}</option>`).join('');
-    if(cur) sel.value = cur;
-  };
-  fill(document.getElementById('turnoOrigenSel'));
-  fill(document.getElementById('turnoDestinoSel'));
-}
-
-function submitRequest(e){
-  e.preventDefault();
-  const form=e.target;
-  const fd=new FormData(form);
-  const me=DB.users.find(u=>u.id===session.userId);
-  if(!me){toast('Sesión inválida','err');return;}
-  // Validar que las fechas NO sean pasadas (restricción para técnicos)
-  if(session.role!=='admin'){
-    const today = todayStr();
-    const fechasASValidar = [];
-    if(currentType==='cambio_turno') fechasASValidar.push(fd.get('fechaOrigen'), fd.get('fechaDestino'));
-    else if(currentType==='vacaciones') fechasASValidar.push(fd.get('fechaInicio'), fd.get('fechaFin'));
-    else if(currentType==='permiso') fechasASValidar.push(fd.get('fechaPermiso'));
-    else if(currentType==='extension_horario') fechasASValidar.push(fd.get('fechaExtension'));
-    for(const f of fechasASValidar){
-      if(f && f < today){
-        toast('No puedes crear solicitudes para fechas pasadas ('+f+').','err');
-        return;
+// Convierte un grid 2D [dayIdx][hour] = true/false a schedule {Lunes:['00:00-05:00',...]}
+function gridToSchedule(grid){
+  const schedule = {};
+  for(let d=0; d<7; d++){
+    const day = DAYS[d];
+    const segs = [];
+    let startHour = null;
+    for(let h=0; h<24; h++){
+      if(grid[d][h] && startHour===null){
+        startHour = h;
+      } else if(!grid[d][h] && startHour!==null){
+        // Cerrar el segmento
+        const endHour = h;
+        segs.push(String(startHour).padStart(2,'0')+':00-' + String(endHour).padStart(2,'0')+':00');
+        startHour = null;
       }
     }
-  }
-  const r={id:uid('r'),type:currentType,requesterId:me.id,dept:me.dept,status:'pendiente',createdAt:nowStr()};
-  if(currentType==='cambio_turno'){
-    r.fechaOrigen=fd.get('fechaOrigen'); r.turnoOrigen=fd.get('turnoOrigen');
-    r.fechaDestino=fd.get('fechaDestino'); r.turnoDestino=fd.get('turnoDestino');
-    r.contraparte=fd.get('contraparte'); r.motivo=fd.get('motivo');
-  } else if(currentType==='vacaciones'){
-    r.fechaInicio=fd.get('fechaInicio'); r.fechaFin=fd.get('fechaFin'); r.motivoVac=fd.get('motivoVac');
-  } else if(currentType==='permiso'){
-    r.fechaPermiso=fd.get('fechaPermiso'); r.duracionPermiso=fd.get('duracionPermiso'); r.motivoPerm=fd.get('motivoPerm');
-  } else if(currentType==='extension_horario'){
-    r.fechaExtension=fd.get('fechaExtension');
-    r.horaInicioExt=fd.get('horaInicioExt');
-    r.horaFinExt=fd.get('horaFinExt');
-    r.motivoExt=fd.get('motivoExt');
-    // Validar que la extensión no supere las 12 horas del día
-    const validation = validateExtensionHours(me.id, r.fechaExtension, r.horaInicioExt, r.horaFinExt);
-    if(!validation.ok){
-      toast(validation.msg,'err');
-      return;
+    // Si quedó abierto al final del día
+    if(startHour!==null){
+      segs.push(String(startHour).padStart(2,'0')+':00-24:00');
     }
+    schedule[day] = segs;
   }
-  DB.requests.push(r); saveRequest(r);
-  toast('Solicitud enviada correctamente','ok');
-  form.reset(); selectType(currentType); populateContraparte(); populateShifts();
-  go('mias');
+  return schedule;
 }
 
-/* ===================== EDITAR / ELIMINAR SOLICITUDES (PROPIETARIO + ADMIN) ===================== */
+// Devuelve las horas activas (array de enteros 0-23) de un día específico en un schedule
+function scheduleHoursForDay(schedule, day){
+  const segs = (schedule && schedule[day]) || [];
+  const hours = [];
+  segs.forEach(seg=>{
+    const m = seg.match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
+    if(m){
+      let sh = parseInt(m[1],10), eh = parseInt(m[3],10);
+      if(eh <= sh) eh = 24;
+      for(let h=sh; h<eh && h<24; h++){
+        hours.push(h);
+      }
+    }
+  });
+  return hours;
+}
+
+// Estado del editor: grid 2D temporal
+let editorGrid = null;
+let originalGrid = null;
+
+function renderEditor(){
+  if(session.role==='admin'){
+    document.getElementById('editorCalWrap').innerHTML = '<p style="color:var(--muted);padding:20px">El editor de horario es solo para técnicos. Como admin, aprueba o edita las propuestas desde Pendientes.</p>';
+    return;
+  }
+  const me = DB.users.find(u=>u.id===session.userId);
+  if(!me){ return; }
+
+  // Inicializar el grid con el schedule actual del técnico (o con el del último calendario aprobado)
+  const currentSchedule = getSchedule(me.id);
+  if(!editorGrid){
+    editorGrid = scheduleToGrid(currentSchedule);
+    originalGrid = scheduleToGrid(currentSchedule);
+  }
+
+  // Mostrar nombre y depto
+  document.getElementById('editorUserName').textContent = me.name;
+  const deptBadge = document.getElementById('editorDeptBadge');
+  deptBadge.textContent = me.dept;
+  deptBadge.className = 'badge ' + (me.dept==='NOC'?'noc':'guardia');
+
+  // Construir tabla
+  const hours = [];
+  for(let h=0; h<24; h++){ hours.push(h); }
+  const c = getUserColor(me);
+
+  const headDays = DAYS.map((d,i)=>`<th class="day-col"><span class="day-name">${d}</span></th>`).join('');
+
+  const rows = hours.map(h=>{
+    const tds = DAYS.map((day,dIdx)=>{
+      const active = editorGrid[dIdx][h];
+      const hourStr = String(h).padStart(2,'0')+':00';
+      const dayHours = editorGrid[dIdx].filter(Boolean).length;
+      const overLimit = dayHours > 12;
+      if(active){
+        return `<td class="editor-cell active" style="background:${c}" onclick="toggleCell(${dIdx},${h})" title="${day} ${hourStr} (clic para quitar)">
+          <span class="editor-plus" onclick="event.stopPropagation();extendCell(${dIdx},${h})" title="Extender 1 hora">+</span>
+        </td>`;
+      } else {
+        return `<td class="editor-cell" onclick="toggleCell(${dIdx},${h})" title="${day} ${hourStr} (clic para agregar)">·</td>`;
+      }
+    }).join('');
+    return `<tr><th>${String(h).padStart(2,'0')}:00 - ${String((h+1)%24).padStart(2,'0')}:00</th>${tds}</tr>`;
+  }).join('');
+
+  // Resumen de horas por día
+  const daySummary = DAYS.map((d,i)=>{
+    const h = editorGrid[i].filter(Boolean).length;
+    const overLimit = h > 12;
+    return `<span style="color:${overLimit?'var(--danger)':'var(--muted)'};font-size:11px;${overLimit?'font-weight:600':''}">${d.slice(0,3)}: ${h}h${overLimit?' ⚠':''}</span>`;
+  }).join(' · ');
+
+  const totalH = editorGrid.flat().filter(Boolean).length;
+
+  document.getElementById('editorCalWrap').innerHTML = `
+    <table class="cal-sched">
+      <thead><tr><th class="time-col">Franja</th>${headDays}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  document.getElementById('editorFoot').innerHTML = `
+    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+      <span style="color:var(--muted);font-size:12px"><b>Total semanal: ${totalH}h</b></span>
+    </div>
+    <div style="color:var(--muted);font-size:11px;margin-bottom:6px">${daySummary}</div>
+    <div style="color:var(--muted-2);font-size:11px">Clic en celda para activar/desactivar · Botón + para extender 1 hora · Máximo 12h por día</div>
+  `;
+
+  // Alerta si algún día supera 12h
+  const alertBox = document.getElementById('editorAlertBox');
+  const overDays = DAYS.map((d,i)=>({d, h:editorGrid[i].filter(Boolean).length})).filter(x=>x.h>12);
+  if(overDays.length>0){
+    alertBox.style.display = 'block';
+    alertBox.style.background = 'var(--danger-soft)';
+    alertBox.style.borderLeftColor = 'var(--danger)';
+    alertBox.innerHTML = `⚠️ <b>Días que superan las 12 horas:</b> ${overDays.map(x=>`${x.d} (${x.h}h)`).join(', ')}. Debes reducir horas antes de enviar.`;
+  } else {
+    alertBox.style.display = 'none';
+  }
+}
+
+// Toggle una celda del editor
+function toggleCell(dayIdx, hour){
+  if(!editorGrid) return;
+  editorGrid[dayIdx][hour] = !editorGrid[dayIdx][hour];
+  renderEditor();
+}
+
+// Extiende 1 hora: agrega la hora adyacente (siguiente o anterior)
+function extendCell(dayIdx, hour){
+  if(!editorGrid) return;
+  // Intentar agregar la siguiente hora; si ya está ocupada o es 23, intentar la anterior
+  if(hour < 23 && !editorGrid[dayIdx][hour+1]){
+    editorGrid[dayIdx][hour+1] = true;
+  } else if(hour > 0 && !editorGrid[dayIdx][hour-1]){
+    editorGrid[dayIdx][hour-1] = true;
+  } else {
+    toast('No hay espacio adyacente disponible para extender.','warn');
+    return;
+  }
+  renderEditor();
+}
+
+// Restablece el editor al schedule original
+function resetEditor(){
+  const me = DB.users.find(u=>u.id===session.userId);
+  if(!me) return;
+  const currentSchedule = getSchedule(me.id);
+  editorGrid = scheduleToGrid(currentSchedule);
+  renderEditor();
+  toast('Editor restablecido al horario oficial.','ok');
+}
+
+// Envía el borrador al admin
+function sendDraft(){
+  if(!editorGrid){ toast('No hay cambios para enviar.','err'); return; }
+  const me = DB.users.find(u=>u.id===session.userId);
+  if(!me){ toast('Sesión inválida.','err'); return; }
+
+  // Verificar que no haya días con más de 12 horas
+  const overDays = DAYS.map((d,i)=>({d, h:editorGrid[i].filter(Boolean).length})).filter(x=>x.h>12);
+  if(overDays.length>0){
+    toast(`Días con más de 12h: ${overDays.map(x=>x.d).join(', ')}. Reduce antes de enviar.`,'err');
+    return;
+  }
+
+  // Convertir el grid a schedule
+  const proposedSchedule = gridToSchedule(editorGrid);
+
+  // Verificar si hay cambios respecto al original
+  const originalSchedule = gridToSchedule(originalGrid);
+  if(JSON.stringify(proposedSchedule) === JSON.stringify(originalSchedule)){
+    toast('No has hecho cambios. Modifica el calendario antes de enviar.','warn');
+    return;
+  }
+
+  // Pedir motivo
+  openModal('Enviar propuesta de horario',
+    `<p style="margin-bottom:10px">Vas a enviar tu propuesta de horario semanal al administrador para su aprobación.</p>
+     <div style="background:var(--bg-2);border:1px solid var(--border-soft);border-radius:9px;padding:10px 14px;font-size:12px;margin-bottom:14px">
+       ${DAYS.map((d,i)=>{
+         const h = editorGrid[i].filter(Boolean).length;
+         return `<span style="color:${h>0?'var(--text)':'var(--muted-2)'}">${d.slice(0,3)}: ${h}h</span>`;
+       }).join(' · ')}
+     </div>
+     <div class="field">
+       <label>Motivo / comentarios (opcional)</label>
+       <textarea id="draftMotivo" placeholder="Ej. Cambio de horario por motivo personal, cobertura de vacaciones, etc."></textarea>
+     </div>`,
+    [
+      {label:'Cancelar', cls:'ghost', onclick:closeModal},
+      {label:'Enviar propuesta', cls:'success', onclick:()=>{
+        const motivo = document.getElementById('draftMotivo').value.trim();
+        const newReq = {
+          id: uid('r'),
+          type: 'calendario',
+          requesterId: me.id,
+          dept: me.dept,
+          status: 'pendiente',
+          createdAt: nowStr(),
+          schedule: proposedSchedule,
+          motivo: motivo
+        };
+        DB.requests.push(newReq);
+        saveRequest(newReq);
+        closeModal();
+        toast('Propuesta enviada al administrador.','ok');
+        // Resetear el editor al estado propuesto (para que pueda seguir editando si quiere)
+        originalGrid = JSON.parse(JSON.stringify(editorGrid));
+        go('mias');
+      }}
+    ]
+  );
+}
+
+/* ===================== EDITAR SOLICITUDES (PROPIETARIO + ADMIN) ===================== */
 // El admin puede editar/eliminar CUALQUIER solicitud (incluso las aprobadas).
 // Los técnicos solo pueden editar/eliminar SUS solicitudes pendientes o rechazadas.
 function canEdit(r){
   if(!r) return false;
-  if(session.role==='admin') return true; // admin: cualquier solicitud
+  if(session.role==='admin') return true;
   return r.requesterId===session.userId && r.status!=='aprobada';
 }
 
@@ -3475,7 +3377,7 @@ function deleteRequest(id){
   const isApproved = r.status==='aprobada';
   const isAdmin = session.role==='admin';
   openModal('Eliminar solicitud',
-    `<p>¿Seguro que deseas eliminar la solicitud de <b>${TYPE_LABEL[r.type]}</b> creada el ${r.createdAt}?</p>
+    `<p>¿Seguro que deseas eliminar la solicitud de <b>${TYPE_LABEL[r.type]||r.type}</b> creada el ${r.createdAt}?</p>
      ${isApproved ? `<p style="color:var(--warning);margin-top:8px;font-size:12.5px">⚠️ Esta solicitud está <b>aprobada</b>. Al eliminarla, los cambios que generó en el calendario oficial desaparecerán.</p>` : ''}
      ${isAdmin ? `<p style="color:var(--muted);margin-top:8px;font-size:12.5px">Como administrador, puedes eliminar cualquier solicitud.</p>` : ''}
      <p style="color:var(--muted);font-size:12.5px;margin-top:8px">Esta acción no se puede deshacer.</p>`,
@@ -3486,7 +3388,6 @@ function deleteRequest(id){
         try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(_){}
         await deleteRequestFromFirestore(id);
         closeModal(); toast('Solicitud eliminada','ok');
-        // Re-renderizar la vista activa
         const pendView = document.getElementById('view-pendientes');
         if(pendView && pendView.classList.contains('active')) renderPendientes();
         const miasView = document.getElementById('view-mias');
@@ -3497,8 +3398,6 @@ function deleteRequest(id){
         if(resView && resView.classList.contains('active')) renderResumen();
         const horView = document.getElementById('view-horario');
         if(horView && horView.classList.contains('active')) renderHorario();
-        const borView = document.getElementById('view-borrador');
-        if(borView && borView.classList.contains('active')) renderBorrador();
       }}
     ]
   );
@@ -3513,86 +3412,19 @@ function editRequest(id){
   }
 
   const isAdmin = session.role==='admin';
-  // El admin puede cambiar el solicitante; el técnico no.
-  const allUsers = DB.users.filter(u=>u.role!=='admin' && u.active);
-  const me = DB.users.find(u=>u.id===session.userId);
-  const ownerUser = DB.users.find(u=>u.id===r.requesterId) || me;
-  const dept = ownerUser ? ownerUser.dept : (me ? me.dept : 'NOC');
-  const shifts = SHIFTS[dept] || SHIFTS.NOC;
-  const peers = DB.users.filter(u=>u.dept===dept && u.id!==r.requesterId && u.role!=='admin' && u.active);
 
-  let fieldsHtml = '';
-  // Selector de solicitante (solo admin)
-  const solicitanteSelector = isAdmin ? `
-    <div class="field full">
-      <label>Solicitante <span class="req">*</span></label>
-      <select id="e_solicitante">
-        ${allUsers.map(u=>`<option value="${u.id}" ${u.id===r.requesterId?'selected':''}>${u.name} · ${u.dept}</option>`).join('')}
-      </select>
-      <small style="color:var(--muted-2);font-size:11px;margin-top:4px">Como admin puedes reasignar la solicitud a otro técnico.</small>
-    </div>` : '';
-
-  if(r.type==='cambio_turno'){
-    fieldsHtml = `
-      ${solicitanteSelector}
-      <div class="form-grid">
-        <div class="field"><label>Fecha origen <span class="req">*</span></label><input type="date" id="e_fechaOrigen" value="${r.fechaOrigen||''}"></div>
-        <div class="field"><label>Turno origen <span class="req">*</span></label>
-          <select id="e_turnoOrigen">
-            <option value="">Selecciona…</option>
-            ${shifts.map(s=>`<option ${s===r.turnoOrigen?'selected':''}>${s}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field"><label>Fecha destino <span class="req">*</span></label><input type="date" id="e_fechaDestino" value="${r.fechaDestino||''}"></div>
-        <div class="field"><label>Turno destino <span class="req">*</span></label>
-          <select id="e_turnoDestino">
-            <option value="">Selecciona…</option>
-            ${shifts.map(s=>`<option ${s===r.turnoDestino?'selected':''}>${s}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field full"><label>Intercambio con (contraparte) <span class="req">*</span></label>
-          <select id="e_contraparte">
-            <option value="">Selecciona compañero…</option>
-            ${peers.map(u=>`<option value="${u.id}" ${u.id===r.contraparte?'selected':''}>${u.name} · ${u.dept}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field full"><label>Motivo <span class="req">*</span></label>
-          <textarea id="e_motivo" placeholder="Ej. Cita médica, compromiso personal, etc.">${esc(r.motivo||'')}</textarea>
-        </div>
-      </div>`;
-  } else if(r.type==='vacaciones'){
-    fieldsHtml = `
-      ${solicitanteSelector}
-      <div class="form-grid">
-        <div class="field"><label>Fecha de inicio <span class="req">*</span></label><input type="date" id="e_fechaInicio" value="${r.fechaInicio||''}"></div>
-        <div class="field"><label>Fecha de regreso <span class="req">*</span></label><input type="date" id="e_fechaFin" value="${r.fechaFin||''}"></div>
-        <div class="field full"><label>Motivo / observaciones</label><textarea id="e_motivoVac" placeholder="Ej. Vacaciones programadas…">${esc(r.motivoVac||'')}</textarea></div>
-      </div>`;
-  } else if(r.type==='permiso'){
-    fieldsHtml = `
-      ${solicitanteSelector}
-      <div class="form-grid">
-        <div class="field"><label>Fecha del permiso <span class="req">*</span></label><input type="date" id="e_fechaPermiso" value="${r.fechaPermiso||''}"></div>
-        <div class="field"><label>Duración <span class="req">*</span></label>
-          <select id="e_duracionPermiso">
-            <option value="">Selecciona…</option>
-            ${['2 horas','4 horas','Medio día (mañana)','Medio día (tarde)','Día completo'].map(d=>`<option ${d===r.duracionPermiso?'selected':''}>${d}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field full"><label>Motivo <span class="req">*</span></label><textarea id="e_motivoPerm" placeholder="Ej. Cita médica, trámite bancario, etc.">${esc(r.motivoPerm||'')}</textarea></div>
-      </div>`;
-  } else if(r.type==='extension_horario'){
-    fieldsHtml = `
-      ${solicitanteSelector}
-      <div class="form-grid">
-        <div class="field"><label>Fecha <span class="req">*</span></label><input type="date" id="e_fechaExtension" value="${r.fechaExtension||''}"></div>
-        <div class="field"><label>Hora de inicio <span class="req">*</span></label><input type="time" id="e_horaInicioExt" value="${r.horaInicioExt||''}"></div>
-        <div class="field"><label>Hora de fin <span class="req">*</span></label><input type="time" id="e_horaFinExt" value="${r.horaFinExt||''}"></div>
-        <div class="field full"><label>Motivo <span class="req">*</span></label><textarea id="e_motivoExt" placeholder="Ej. Cubrir vacaciones de compañero…">${esc(r.motivoExt||'')}</textarea></div>
-      </div>`;
+  // Para propuestas de calendario: abrir el editor con el schedule propuesto
+  if(r.type==='calendario'){
+    // Cargar el schedule del borrador en el editor
+    editorGrid = scheduleToGrid(r.schedule || {});
+    originalGrid = scheduleToGrid(r.schedule || {});
+    closeModal();
+    go('nueva');
+    toast('Editando propuesta existente. Modifica y envía de nuevo.','ok');
+    return;
   }
 
-  // El admin puede cambiar el estado directamente
+  // Para otros tipos: formulario simple (solo motivo y estado para admin)
   const statusSelector = isAdmin ? `
     <div class="field full" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border-soft)">
       <label>Estado de la solicitud</label>
@@ -3601,49 +3433,19 @@ function editRequest(id){
         <option value="aprobada" ${r.status==='aprobada'?'selected':''}>Aprobada</option>
         <option value="rechazada" ${r.status==='rechazada'?'selected':''}>Rechazada</option>
       </select>
-      <small style="color:var(--muted-2);font-size:11px;margin-top:4px">Como admin puedes cambiar el estado directamente. Si la apruebas desde aquí, se reflejará en el calendario oficial.</small>
     </div>` : '';
 
-  openModal(`Editar solicitud · ${TYPE_LABEL[r.type]}`,
-    `<p style="color:var(--muted);margin-bottom:14px;font-size:12.5px">Estado actual: <b style="color:${r.status==='pendiente'?'var(--warning)':r.status==='rechazada'?'var(--danger)':'var(--success)'}">${r.status}</b>. ${isAdmin?'Como admin puedes editar cualquier campo.':'Al guardar, la solicitud vuelve a estado <b>pendiente</b> y el administrador deberá revisarla de nuevo.'}</p>
-     ${r.status==='rechazada' && r.comments ? `<p style="color:var(--muted);font-size:12px;margin-bottom:14px">Comentario previo del admin: «${esc(r.comments)}»</p>` : ''}
-     ${fieldsHtml}
+  openModal(`Editar solicitud · ${TYPE_LABEL[r.type]||r.type}`,
+    `<p style="color:var(--muted);margin-bottom:14px;font-size:12.5px">Estado actual: <b>${r.status}</b></p>
+     <div class="field full">
+       <label>Motivo</label>
+       <textarea id="e_motivo" placeholder="Motivo...">${esc(r.motivo||'')}</textarea>
+     </div>
      ${statusSelector}`,
     [
       {label:'Cancelar',cls:'ghost',onclick:closeModal},
       {label:'Guardar cambios',cls:'success',onclick:()=>{
-        // Validar y guardar
-        if(r.type==='cambio_turno'){
-          const fo=val('e_fechaOrigen'), to=val('e_turnoOrigen'), fd=val('e_fechaDestino'), td=val('e_turnoDestino'), cp=val('e_contraparte'), mt=val('e_motivo');
-          if(!fo||!to||!fd||!td||!cp||!mt){toast('Completa todos los campos obligatorios','err');return;}
-          r.fechaOrigen=fo; r.turnoOrigen=to; r.fechaDestino=fd; r.turnoDestino=td; r.contraparte=cp; r.motivo=mt;
-        } else if(r.type==='vacaciones'){
-          const fi=val('e_fechaInicio'), ff=val('e_fechaFin');
-          if(!fi||!ff){toast('Completa las fechas','err');return;}
-          r.fechaInicio=fi; r.fechaFin=ff; r.motivoVac=val('e_motivoVac');
-        } else if(r.type==='permiso'){
-          const fp=val('e_fechaPermiso'), dp=val('e_duracionPermiso'), mp=val('e_motivoPerm');
-          if(!fp||!dp||!mp){toast('Completa todos los campos obligatorios','err');return;}
-          r.fechaPermiso=fp; r.duracionPermiso=dp; r.motivoPerm=mp;
-        } else if(r.type==='extension_horario'){
-          const fe=val('e_fechaExtension'), hi=val('e_horaInicioExt'), hf=val('e_horaFinExt'), mt=val('e_motivoExt');
-          if(!fe||!hi||!hf||!mt){toast('Completa todos los campos obligatorios','err');return;}
-          // Validar 12 horas máximas (solo si el solicitante no cambia o si el admin está editando)
-          const solicitanteId = isAdmin && document.getElementById('e_solicitante') ? document.getElementById('e_solicitante').value : r.requesterId;
-          const validation = validateExtensionHours(solicitanteId, fe, hi, hf, r.id);
-          if(!validation.ok){ toast(validation.msg,'err'); return; }
-          r.fechaExtension=fe; r.horaInicioExt=hi; r.horaFinExt=hf; r.motivoExt=mt;
-        }
-        // Si admin cambió el solicitante, actualizar
-        if(isAdmin && document.getElementById('e_solicitante')){
-          const newRequester = document.getElementById('e_solicitante').value;
-          if(newRequester && newRequester !== r.requesterId){
-            r.requesterId = newRequester;
-            const newReqUser = DB.users.find(u=>u.id===newRequester);
-            if(newReqUser) r.dept = newReqUser.dept;
-          }
-        }
-        // Manejo del estado
+        r.motivo = document.getElementById('e_motivo').value.trim();
         if(isAdmin && document.getElementById('e_status')){
           const newStatus = document.getElementById('e_status').value;
           if(newStatus !== r.status){
@@ -3651,26 +3453,16 @@ function editRequest(id){
             r.resolvedAt = nowStr();
             r.resolvedBy = session.userId;
           }
-        } else if(!isAdmin) {
-          // El técnico que edita su solicitud la vuelve a pendiente
-          r.status='pendiente';
-          r.resolvedAt=null; r.resolvedBy=null; r.comments='';
+        } else if(!isAdmin){
+          r.status = 'pendiente';
+          r.resolvedAt = null; r.resolvedBy = null; r.comments = '';
         }
-        r.updatedAt=nowStr();
+        r.updatedAt = nowStr();
         saveRequest(r); closeModal(); toast('Solicitud actualizada','ok');
-        // Re-renderizar vista activa
         const pendView = document.getElementById('view-pendientes');
         if(pendView && pendView.classList.contains('active')) renderPendientes();
         const miasView = document.getElementById('view-mias');
         if(miasView && miasView.classList.contains('active')) renderMyRequests();
-        const histView = document.getElementById('view-historial');
-        if(histView && histView.classList.contains('active')) renderHistorial();
-        const resView = document.getElementById('view-resumen');
-        if(resView && resView.classList.contains('active')) renderResumen();
-        const horView = document.getElementById('view-horario');
-        if(horView && horView.classList.contains('active')) renderHorario();
-        const borView = document.getElementById('view-borrador');
-        if(borView && borView.classList.contains('active')) renderBorrador();
       }}
     ]
   );
@@ -3678,440 +3470,13 @@ function editRequest(id){
 
 function val(id){ const el=document.getElementById(id); return el? el.value.trim() : ''; }
 
-/* ===================== HELPERS: FECHAS, EXTENSIÓN, BORRADOR ===================== */
-
-// Devuelve la fecha de hoy en formato YYYY-MM-DD (en la zona horaria local)
+// Devuelve la fecha de hoy en formato YYYY-MM-DD
 function todayStr(){
   const d = new Date();
   const y = d.getFullYear();
   const m = String(d.getMonth()+1).padStart(2,'0');
   const dd = String(d.getDate()).padStart(2,'0');
   return `${y}-${m}-${dd}`;
-}
-
-// Aplica el atributo min="hoy" a TODOS los inputs type=date del formulario
-// de nueva solicitud, para que los técnicos no puedan elegir fechas pasadas.
-function applyNoPastDatesConstraint(){
-  if(session.role==='admin') return; // admin puede elegir cualquier fecha
-  const today = todayStr();
-  document.querySelectorAll('#view-nueva input[type=date]').forEach(inp=>{
-    inp.setAttribute('min', today);
-  });
-}
-
-// Calcula las horas regulares (oficiales) que un técnico trabaja en una fecha concreta
-// según su schedule y la fecha. Devuelve el total en horas (puede ser fraccional si los
-// turnos no son de horas exactas, pero como nuestros turnos son siempre HH:00-HH:00,
-// el total será un entero).
-function regularHoursOnDate(userId, dateStr){
-  const sch = getSchedule(userId);
-  if(!sch) return 0;
-  const dn = dayNameOf(dateStr);
-  const segs = sch[dn] || [];
-  let total = 0;
-  segs.forEach(s=>{
-    const m = s.match(/(\d{2}):00\s*-\s*(\d{2}):00/);
-    if(m){
-      let a = parseInt(m[1],10), b = parseInt(m[2],10);
-      if(b<=a) b += 24; // turno cruza medianoche
-      total += (b-a);
-    }
-  });
-  return total;
-}
-
-// Calcula las horas de extensiones APROBADAS que un técnico ya tiene en una fecha.
-// (Solo extensiones aprobadas, no las pendientes.)
-function approvedExtensionHoursOnDate(userId, dateStr, exceptReqId){
-  let total = 0;
-  DB.requests.forEach(r=>{
-    if(r.id===exceptReqId) return;
-    if(r.type!=='extension_horario' || r.status!=='aprobada') return;
-    if(r.requesterId!==userId) return;
-    if(r.fechaExtension!==dateStr) return;
-    const mins = hoursBetween(r.horaInicioExt, r.horaFinExt);
-    if(mins>0) total += mins;
-  });
-  return total;
-}
-
-// Devuelve las horas (entero) entre dos strings "HH:MM". Soporta cruce de medianoche.
-function hoursBetween(start, end){
-  if(!start || !end) return 0;
-  const [sh, sm] = start.split(':').map(n=>parseInt(n,10));
-  const [eh, em] = end.split(':').map(n=>parseInt(n,10));
-  let minsStart = sh*60 + sm;
-  let minsEnd = eh*60 + em;
-  if(minsEnd <= minsStart) minsEnd += 24*60; // cruzó medianoche
-  const diff = (minsEnd - minsStart) / 60;
-  return diff;
-}
-
-// Valida que la extensión solicitada + turno regular + extensiones ya aprobadas
-// no supere las 12 horas en el día.
-function validateExtensionHours(userId, dateStr, horaInicio, horaFin, exceptReqId){
-  if(!userId || !dateStr || !horaInicio || !horaFin){
-    return { ok:false, msg:'Faltan datos para validar la extensión.' };
-  }
-  const extHours = hoursBetween(horaInicio, horaFin);
-  if(extHours <= 0){
-    return { ok:false, msg:'La hora de fin debe ser mayor que la hora de inicio.' };
-  }
-  const regular = regularHoursOnDate(userId, dateStr);
-  const otherApproved = approvedExtensionHoursOnDate(userId, dateStr, exceptReqId);
-  const total = regular + extHours + otherApproved;
-  const MAX = 12;
-  if(total > MAX){
-    const exceso = total - MAX;
-    return {
-      ok:false,
-      msg:`La extensión supera las 12 horas del día. Turno regular: ${regular}h + extensiones aprobadas: ${otherApproved}h + esta extensión: ${extHours}h = ${total}h (excede por ${exceso}h).`
-    };
-  }
-  return { ok:true, total:total, regular:regular, extension:extHours, otherApproved:otherApproved };
-}
-
-// Detecta choques de una solicitud (especialmente extensión de horario) con
-// otras solicitudes aprobadas del mismo técnico en la misma fecha.
-// Devuelve un array de choques detectados, cada uno con {tipo, fecha, detalle}.
-function detectConflicts(req){
-  const conflicts = [];
-  if(!req) return conflicts;
-  const userId = req.requesterId;
-  // Fechas relevantes de la solicitud que se está aprobando
-  const myDates = [];
-  if(req.type==='extension_horario') myDates.push({fecha:req.fechaExtension, horaInicio:req.horaInicioExt, horaFin:req.horaFinExt});
-  else if(req.type==='permiso') myDates.push({fecha:req.fechaPermiso});
-  else if(req.type==='vacaciones') datesOfRequest(req).forEach(d=>myDates.push({fecha:d}));
-  else if(req.type==='cambio_turno'){ myDates.push({fecha:req.fechaOrigen}); myDates.push({fecha:req.fechaDestino}); }
-
-  myDates.forEach(myDate=>{
-    DB.requests.forEach(other=>{
-      if(other.id===req.id) return;
-      if(other.status!=='aprobada') return;
-      if(other.requesterId!==userId) return;
-      // ¿La otra solicitud toca esa fecha?
-      let otherTouches = false;
-      let otherDetail = '';
-      if(other.type==='extension_horario' && other.fechaExtension===myDate.fecha){
-        otherTouches = true;
-        otherDetail = `Extensión ${other.horaInicioExt}-${other.horaFinExt}`;
-      } else if(other.type==='permiso' && other.fechaPermiso===myDate.fecha){
-        otherTouches = true;
-        otherDetail = `Permiso (${other.duracionPermiso||''})`;
-      } else if(other.type==='vacaciones' && other.fechaInicio<=myDate.fecha && myDate.fecha<=other.fechaFin){
-        otherTouches = true;
-        otherDetail = `Vacaciones ${other.fechaInicio} → ${other.fechaFin}`;
-      } else if(other.type==='cambio_turno' && (other.fechaOrigen===myDate.fecha || other.fechaDestino===myDate.fecha)){
-        otherTouches = true;
-        otherDetail = `Cambio de turno (${other.fechaOrigen} → ${other.fechaDestino})`;
-      }
-      if(!otherTouches) return;
-      // Para extensiones, verificar choque horario real (no solo mismo día)
-      if(req.type==='extension_horario' && other.type==='extension_horario'){
-        // Si ambos son extensión y se solapan en horas → conflicto real
-        const overlap = hoursOverlap(myDate.horaInicio, myDate.horaFin, other.horaInicioExt, other.horaFinExt);
-        if(overlap){
-          conflicts.push({
-            fecha: myDate.fecha,
-            tipo: 'choque_horario',
-            detalle: `Tu extensión ${myDate.horaInicio}-${myDate.horaFin} choca con otra extensión aprobada ${other.horaInicioExt}-${other.horaFinExt}`
-          });
-        }
-      } else {
-        // Cualquier otra combinación en la misma fecha es un conflicto potencial
-        conflicts.push({
-          fecha: myDate.fecha,
-          tipo: 'mismo_dia',
-          detalle: `En ${fmtDayLabel(myDate.fecha)} ya tienes: ${otherDetail}`
-        });
-      }
-    });
-  });
-  return conflicts;
-}
-
-// Devuelve true si dos rangos horarios se solapan.
-function hoursOverlap(start1, end1, start2, end2){
-  if(!start1 || !end1 || !start2 || !end2) return false;
-  const s1 = toMinutes(start1), e1 = toMinutes(end1, s1);
-  const s2 = toMinutes(start2), e2 = toMinutes(end2, s2);
-  return s1 < e2 && s2 < e1;
-}
-
-function toMinutes(hhmm, startMin){
-  if(!hhmm) return 0;
-  const [h, m] = hhmm.split(':').map(n=>parseInt(n,10));
-  let mins = h*60 + m;
-  // Si es menor que startMin, asumimos que cruzó medianoche
-  if(startMin!=null && mins < startMin) mins += 24*60;
-  return mins;
-}
-
-/* ===================== CALENDARIO BORRADOR DEL TÉCNICO ===================== */
-let borradorWeekOffset = 0;
-
-function borradorNav(dir){
-  borradorWeekOffset = (dir===0) ? 0 : borradorWeekOffset + dir;
-  renderBorrador();
-}
-
-function renderBorrador(){
-  if(session.role==='admin'){
-    document.getElementById('borradorPanels').innerHTML = '<p style="color:var(--muted);padding:20px">El calendario borrador es solo para técnicos. Como admin, usa la pestaña Pendientes para aprobar/editar solicitudes.</p>';
-    document.getElementById('borradorReqBody').innerHTML = '';
-    document.getElementById('borradorModeToggle').innerHTML = '';
-    document.getElementById('borradorWeekInfo').textContent = '';
-    document.getElementById('borradorAlertBox').style.display = 'none';
-    return;
-  }
-  const me = DB.users.find(u=>u.id===session.userId);
-  if(!me){ return; }
-  const today = new Date(); today.setHours(0,0,0,0);
-  const monthNames = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-  const weekDates = getWeekDates(borradorWeekOffset);
-  const startStr = `${weekDates[0].getDate()} ${monthNames[weekDates[0].getMonth()]}`;
-  const endStr = `${weekDates[6].getDate()} ${monthNames[weekDates[6].getMonth()]} ${weekDates[6].getFullYear()}`;
-
-  document.getElementById('borradorWeekInfo').innerHTML = `
-    <b>Semana del ${startStr} al ${endStr}</b>
-    <small>Mi calendario borrador · Solo fechas futuras</small>
-  `;
-  document.getElementById('borradorModeToggle').innerHTML = `
-    <button class="mode-btn active">📝 Crear extensión</button>
-  `;
-
-  // Alerta informativa
-  const alertBox = document.getElementById('borradorAlertBox');
-  const todayDateStr = todayStr();
-  const futureWeeks = weekDates.filter(d => d.getTime() >= today.getTime());
-  if(futureWeeks.length === 0){
-    alertBox.style.display = 'block';
-    alertBox.innerHTML = `<div class="cal-alert" style="background:var(--warning-soft);border-left-color:var(--warning)">⚠️ Estás viendo una semana pasada. Usa "Semana siguiente" para crear solicitudes en fechas futuras.</div>`;
-  } else {
-    alertBox.style.display = 'block';
-    alertBox.innerHTML = `<div class="cal-alert">Haz clic en una celda vacía (futuro) para crear una extensión de horario. Máximo 12 horas por día (turno regular + extensión).</div>`;
-  }
-
-  // Render del calendario del propio técnico con sus solicitudes pendientes
-  const c = getUserColor(me);
-  const headDays = weekDates.map((date,i)=>{
-    const isToday = (date.getTime()===today.getTime());
-    const isWeekend = (i>=5);
-    const isPast = date.getTime() < today.getTime();
-    return `<th class="day-col ${isToday?'today-col':''} ${isWeekend?'weekend-col':''} ${isPast?'past-col':''}">
-      <span class="day-name">${DAYS[i]}</span>
-      <span class="day-date">${date.getDate()} ${monthNames[date.getMonth()]}</span>
-    </th>`;
-  }).join('');
-
-  const hours = hourTicks(me.dept);
-  const rows = hours.map(h=>{
-    const tds = weekDates.map((date,i)=>{
-      const dayName = DAYS[i];
-      const isWeekend = (i>=5);
-      const isPast = date.getTime() < today.getTime();
-      const blocks = buildBorradorCellBlocks(me, dayName, date, h, isPast);
-      return `<td class="${isWeekend?'weekend-cell':''} ${isPast?'past-cell':''}">${blocks}</td>`;
-    }).join('');
-    return `<tr><th>${formatHourRange(h)}</th>${tds}</tr>`;
-  }).join('');
-
-  document.getElementById('borradorPanels').innerHTML = `
-    <div class="panel">
-      <div class="panel-head">
-        <h3>🗓️ Mi calendario borrador · ${me.name}</h3>
-        <span class="badge ${me.dept==='NOC'?'noc':'guardia'}">${me.dept}</span>
-      </div>
-      <div class="panel-body">
-        <div class="cal-table-wrap">
-          <table class="cal-sched">
-            <thead><tr><th class="time-col">Franja horaria</th>${headDays}</tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-          <div class="cal-table-foot">Clic en una celda vacía (futuro) para crear extensión de horario · Las solicitudes pendientes se ven aquí primero</div>
-        </div>
-      </div>
-    </div>`;
-
-  // Listar solicitudes en borrador (pendientes) del técnico
-  const myPending = DB.requests.filter(r=>r.requesterId===session.userId && r.status==='pendiente');
-  const myApproved = DB.requests.filter(r=>r.requesterId===session.userId && r.status==='aprobada');
-  const bodyReq = document.getElementById('borradorReqBody');
-  if(myPending.length===0 && myApproved.length===0){
-    bodyReq.innerHTML = '<div class="empty"><div class="ico">📝</div>No tienes solicitudes en borrador. Usa el calendario de arriba para crear extensiones de horario.</div>';
-  } else {
-    let html = '';
-    if(myPending.length>0){
-      html += `<h4 style="color:var(--warning);margin-bottom:8px;font-size:13px">⏳ Pendientes de aprobación (${myPending.length})</h4>`;
-      html += `<div class="req-list" style="margin-bottom:16px">${myPending.map(renderReqCard).join('')}</div>`;
-    }
-    if(myApproved.length>0){
-      html += `<h4 style="color:var(--success);margin-bottom:8px;font-size:13px">✅ Ya aprobadas (se ven en calendario oficial) (${myApproved.length})</h4>`;
-      html += `<div class="req-list">${myApproved.map(renderReqCard).join('')}</div>`;
-    }
-    bodyReq.innerHTML = html;
-  }
-}
-
-// Genera el contenido de UNA CELDA del calendario borrador del técnico.
-// Muestra: turno regular (oficial) + extensiones pendientes (amarillo) + extensiones aprobadas (verde).
-// Permite clic en celdas vacías (futuras) para crear una extensión.
-function buildBorradorCellBlocks(me, dayName, date, hourTick, isPast){
-  const dateStr = fmtCalDate(date);
-  const h = parseInt(hourTick.split(':')[0],10);
-  const c = getUserColor(me);
-  const blocks = [];
-
-  // 1. Turno regular (schedule oficial)
-  const sch = getSchedule(me.id);
-  const found = (sch && sch[dayName]) ? sch[dayName].find(seg=>coversHour(seg, hourTick)) : null;
-  if(found){
-    blocks.push(`<div class="cal-cell-block" style="background:${c}">
-      <span class="ccb-name">${shortName(me.name)}</span>
-      <span class="ccb-sub">${found}</span>
-    </div>`);
-  }
-
-  // 2. Extensiones pendientes (amarillo)
-  DB.requests.forEach(r=>{
-    if(r.requesterId!==me.id || r.type!=='extension_horario' || r.status!=='pendiente') return;
-    if(r.fechaExtension!==dateStr) return;
-    if(!coversHour(r.horaInicioExt.replace(':','-')+'-'+r.horaFinExt.replace(':','-'), hourTick)){
-      // coversHour espera "HH:00-HH:00"; armamos el string
-      const seg = r.horaInicioExt + '-' + r.horaFinExt;
-      if(!coversHour(seg, hourTick)) return;
-    }
-    blocks.push(`<div class="cal-cell-block ext-pending-cell" style="background:rgba(245,158,11,.35);color:#fde68a;border-left:3px solid var(--warning)">
-      <span class="ccb-name">⏱️ ${shortName(me.name)} (pendiente)</span>
-      <span class="ccb-sub">${r.horaInicioExt}-${r.horaFinExt}</span>
-    </div>`);
-  });
-
-  // 3. Extensiones aprobadas (verde)
-  DB.requests.forEach(r=>{
-    if(r.requesterId!==me.id || r.type!=='extension_horario' || r.status!=='aprobada') return;
-    if(r.fechaExtension!==dateStr) return;
-    const seg = r.horaInicioExt + '-' + r.horaFinExt;
-    if(!coversHour(seg, hourTick)) return;
-    blocks.push(`<div class="cal-cell-block ext-approved-cell" style="background:rgba(16,185,129,.35);color:#a7f3d0;border-left:3px solid var(--success)">
-      <span class="ccb-name">✅ ${shortName(me.name)} (aprobada)</span>
-      <span class="ccb-sub">${r.horaInicioExt}-${r.horaFinExt}</span>
-    </div>`);
-  });
-
-  // 4. Celda vacía clicable (solo si es futura y no hay nada)
-  if(blocks.length===0){
-    if(isPast){
-      return `<div class="cal-cell-empty" style="opacity:.4">·</div>`;
-    }
-    return `<div class="cal-cell-empty cal-cell-clickable" onclick="openExtensionModal('${dateStr}','${hourTick}')" title="Crear extensión de horario">＋</div>`;
-  }
-  return blocks.join('');
-}
-
-// Abre un modal para crear una extensión de horario partiendo de la celda clicada.
-function openExtensionModal(dateStr, hourTick){
-  const defaultStart = hourTick; // "HH:00"
-  const h = parseInt(hourTick.split(':')[0],10);
-  const endH = (h+1)%24;
-  const defaultEnd = (endH===0 ? '24' : String(endH).padStart(2,'0')) + ':00';
-  // Calcular info de horas regulares para mostrar en vivo
-  const me = DB.users.find(u=>u.id===session.userId);
-  const regular = regularHoursOnDate(me.id, dateStr);
-  const otherApproved = approvedExtensionHoursOnDate(me.id, dateStr);
-
-  openModal('Crear extensión de horario',
-    `<p style="margin-bottom:10px">Vas a crear una solicitud de <b>extensión de horario</b> para el <b>${fmtDayLabel(dateStr)}</b>.</p>
-     <div style="background:var(--bg-2);border:1px solid var(--border-soft);border-radius:9px;padding:10px 14px;font-size:12px;margin-bottom:14px">
-       <b style="color:var(--text)">Resumen del día:</b><br>
-       Turno regular: <b style="color:var(--text)">${regular}h</b> · Extensiones ya aprobadas: <b style="color:var(--text)">${otherApproved}h</b> · Máximo permitido: <b style="color:var(--text)">12h</b>
-     </div>
-     <div class="form-grid">
-       <div class="field">
-         <label>Fecha <span class="req">*</span></label>
-         <input type="date" id="ext_fecha" value="${dateStr}" min="${todayStr()}" required>
-       </div>
-       <div class="field">
-         <label>Hora de inicio <span class="req">*</span></label>
-         <input type="time" id="ext_horaInicio" value="${defaultStart}" required>
-       </div>
-       <div class="field">
-         <label>Hora de fin <span class="req">*</span></label>
-         <input type="time" id="ext_horaFin" value="${defaultEnd}" required>
-       </div>
-       <div class="field full">
-         <label>Motivo <span class="req">*</span></label>
-         <textarea id="ext_motivo" placeholder="Ej. Cubrir vacaciones de compañero, jornada extendida…" required></textarea>
-       </div>
-       <div class="field full">
-         <div id="ext_validation" style="font-size:12px;padding:8px 10px;border-radius:6px;background:var(--bg-2);border:1px solid var(--border-soft)"></div>
-       </div>
-     </div>`,
-    [
-      {label:'Cancelar', cls:'ghost', onclick:closeModal},
-      {label:'Crear solicitud', cls:'success', onclick:()=>{
-        const fecha = document.getElementById('ext_fecha').value;
-        const horaInicio = document.getElementById('ext_horaInicio').value;
-        const horaFin = document.getElementById('ext_horaFin').value;
-        const motivo = document.getElementById('ext_motivo').value.trim();
-        if(!fecha || !horaInicio || !horaFin || !motivo){
-          toast('Completa todos los campos','err'); return;
-        }
-        if(fecha < todayStr()){
-          toast('No puedes crear solicitudes para fechas pasadas','err'); return;
-        }
-        const validation = validateExtensionHours(me.id, fecha, horaInicio, horaFin);
-        if(!validation.ok){
-          toast(validation.msg,'err'); return;
-        }
-        const newReq = {
-          id: uid('r'),
-          type: 'extension_horario',
-          requesterId: me.id,
-          dept: me.dept,
-          status: 'pendiente',
-          createdAt: nowStr(),
-          fechaExtension: fecha,
-          horaInicioExt: horaInicio,
-          horaFinExt: horaFin,
-          motivoExt: motivo
-        };
-        DB.requests.push(newReq);
-        saveRequest(newReq);
-        closeModal();
-        toast(`Extensión creada: ${horaInicio}-${horaFin} (${validation.extension}h). Total del día: ${validation.total}h.`, 'ok');
-        renderBorrador();
-      }}
-    ]
-  );
-  // Listener en vivo para mostrar la validación mientras el usuario cambia horas
-  const updateValidation = ()=>{
-    const fecha = document.getElementById('ext_fecha').value;
-    const horaInicio = document.getElementById('ext_horaInicio').value;
-    const horaFin = document.getElementById('ext_horaFin').value;
-    const box = document.getElementById('ext_validation');
-    if(!fecha || !horaInicio || !horaFin){
-      box.innerHTML = '<span style="color:var(--muted)">Completa fecha y horas para ver la validación.</span>';
-      return;
-    }
-    const v = validateExtensionHours(me.id, fecha, horaInicio, horaFin);
-    if(v.ok){
-      box.style.color = 'var(--success)';
-      box.style.borderColor = 'var(--success)';
-      box.innerHTML = `✓ Válido. Turno regular ${v.regular}h + extensiones aprobadas ${v.otherApproved}h + esta extensión ${v.extension}h = <b>${v.total}h</b> de 12h máx.`;
-    } else {
-      box.style.color = 'var(--danger)';
-      box.style.borderColor = 'var(--danger)';
-      box.innerHTML = `✗ ${v.msg}`;
-    }
-  };
-  ['ext_fecha','ext_horaInicio','ext_horaFin'].forEach(id=>{
-    const el = document.getElementById(id);
-    if(el) el.addEventListener('change', updateValidation);
-    if(el) el.addEventListener('input', updateValidation);
-  });
-  updateValidation();
 }
 
 /* ===================== USER: MIS SOLICITUDES ===================== */
