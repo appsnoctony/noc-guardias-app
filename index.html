@@ -1529,7 +1529,6 @@ async function doLogin(e){
     errBox.style.display = 'block';
     return;
   }
-  // Botón en estado "cargando"
   const btn = e.target.querySelector('button[type=submit]');
   const origText = btn.textContent;
   btn.textContent = 'Entrando…';
@@ -1538,18 +1537,14 @@ async function doLogin(e){
     const cred = await fbauth.signInWithEmailAndPassword(email, pwd);
     const fbUser = cred.user;
     // Cargar la BD completa AHORA que tenemos sesión válida en Firebase Auth.
-    // Esto resuelve el warning "Missing or insufficient permissions" que aparecía
-    // porque loadDB() se ejecutaba antes del login.
     await loadDB();
-    // Buscar el perfil del usuario en Firestore por UID (más eficiente y seguro
-    // que un query por email, porque coincide con el docId = UID de Auth)
+    // Buscar el perfil del usuario en Firestore por UID
     let userProfile = DB.users.find(u=>u.id===fbUser.uid);
     if(!userProfile){
       try{
         const userDoc = await fbdb.collection('users').doc(fbUser.uid).get();
         if(userDoc.exists){
           userProfile = { id: userDoc.id, ...userDoc.data() };
-          // Actualizar caché local
           if(!DB.users.some(u=>u.id===userProfile.id)){
             DB.users.push(userProfile);
             try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(_){}
@@ -1558,7 +1553,6 @@ async function doLogin(e){
       }catch(_){}
     }
     if(!userProfile){
-      // Usuario existe en Auth pero no tiene perfil en Firestore
       await fbauth.signOut();
       errBox.textContent = 'Tu usuario no tiene perfil asignado. Contacta al administrador.';
       errBox.style.display = 'block';
@@ -1570,7 +1564,6 @@ async function doLogin(e){
       errBox.style.display = 'block';
       return;
     }
-    // Validar coherencia entre el rol/depto seleccionado y el perfil
     const selectedRole = pendingRole;
     const profileRole = userProfile.role==='admin' ? 'admin'
                       : (userProfile.dept==='NOC' ? 'noc' : 'guardia');
@@ -1580,14 +1573,12 @@ async function doLogin(e){
       errBox.style.display = 'block';
       return;
     }
-    // Si es admin, guardar credenciales en memoria para permitir crear usuarios después
     if(profileRole==='admin'){
       adminCreds = { email: email, password: pwd };
     } else {
       adminCreds = null;
     }
     errBox.style.display = 'none';
-    // La sesión se establece en onAuthStateChanged
     session = {role: profileRole, userId: userProfile.id, email: fbUser.email, fbUid: fbUser.uid};
     try{ sessionStorage.setItem('session', JSON.stringify(session)); }catch(_){}
     document.getElementById('login').style.display = 'none';
@@ -1606,7 +1597,6 @@ async function doLogin(e){
 }
 
 function login(role, userId){
-  // Compatibilidad con restauración de sesión vía onAuthStateChanged.
   session = {role, userId};
   try{ sessionStorage.setItem('session', JSON.stringify(session)); }catch(_){}
   document.getElementById('login').style.display = 'none';
@@ -1617,7 +1607,7 @@ function login(role, userId){
 async function logout(){
   try{ sessionStorage.removeItem('session'); }catch(_){}
   session = null;
-  adminCreds = null; // limpiar credenciales del admin al cerrar sesión
+  adminCreds = null;
   if(useFirebase && fbauth){
     try{ await fbauth.signOut(); }catch(_){}
   }
@@ -2672,8 +2662,6 @@ async function promptAdminReauth(){
 }
 
 // Envía un email de reseteo de contraseña usando Firebase Auth.
-// Firebase enviará un correo con un link donde el usuario puede definir su nueva contraseña.
-// Solo el admin puede invocar esto desde la UI.
 async function sendPasswordResetTo(email){
   if(!email){ toast('Falta el correo del usuario.','err'); return; }
   if(!useFirebase || !fbauth){ toast('Firebase Auth no disponible.','err'); return; }
@@ -2681,10 +2669,9 @@ async function sendPasswordResetTo(email){
     toast('Solo el administrador puede enviar emails de reseteo.','err');
     return;
   }
-  // Confirmar antes de enviar
   openModal('Enviar email de reseteo',
     `<p>Se enviará un correo a <b>${esc(email)}</b> con un enlace para que el usuario restablezca su contraseña.</p>
-     <p style="color:var(--muted);font-size:12.5px;margin-top:8px">El usuario recibirá el email desde Firebase (remitente noreply@noc-guardias.firebaseapp.com o similar) y deberá hacer clic en el enlace para definir su nueva contraseña.</p>`,
+     <p style="color:var(--muted);font-size:12.5px;margin-top:8px">El usuario recibirá el email desde Firebase y deberá hacer clic en el enlace para definir su nueva contraseña.</p>`,
     [
       {label:'Cancelar', cls:'ghost', onclick:closeModal},
       {label:'Enviar email', cls:'', onclick:async () => {
@@ -2801,7 +2788,10 @@ function openUserModal(id){
         const dept=document.getElementById('uDept').value;
         const role=document.getElementById('uRole').value;
         const active=document.getElementById('uActive').value==='true';
-        const password=document.getElementById('uPassword').value.trim();
+        // Si el campo uPassword no existe (p.ej. editando a otro usuario),
+        // password queda vacío. Así evitamos el crash "Cannot read properties of null".
+        const pwdEl = document.getElementById('uPassword');
+        const password = pwdEl ? pwdEl.value.trim() : '';
 
         const btn = document.querySelector('#modalFoot .btn:not(.ghost)');
         const orig = btn? btn.textContent : '';
@@ -2809,9 +2799,7 @@ function openUserModal(id){
 
         try{
           if(u){
-            // --- EDITAR usuario existente ---
             u.name=name; u.email=email; u.dept=dept; u.role=role; u.active=active;
-            // Leer el horario del modal (si el usuario no es admin)
             if(dept!=='Admin'){
               const schedule = {};
               document.querySelectorAll('.sched-input').forEach(inp=>{
@@ -2825,16 +2813,10 @@ function openUserModal(id){
                 }
               });
               u.schedule = schedule;
-              if(!u.color){
-                u.color = getUserColor(u);
-              }
+              if(!u.color){ u.color = getUserColor(u); }
             }
-            // Si está editando su propio perfil y escribió una contraseña nueva,
-            // actualizarla en Firebase Auth con updatePassword (requiere re-autenticación reciente).
             if(password && u.id === session.userId){
               try{
-                // Para updatePassword, Firebase requiere re-autenticación reciente.
-                // Usamos adminCreds si están disponibles, o pedimos contraseña.
                 if(!adminCreds || !adminCreds.email){
                   const reauthOk = await promptAdminReauth();
                   if(!reauthOk){
@@ -2842,9 +2824,7 @@ function openUserModal(id){
                     return;
                   }
                 }
-                // Re-autenticar al usuario actual (que es el propio admin)
                 const cred = await fbauth.signInWithEmailAndPassword(adminCreds.email, adminCreds.password);
-                // Ahora sí cambiar la contraseña
                 await cred.user.updatePassword(password);
                 toast('Tu contraseña se actualizó en Firebase Auth.','ok');
               }catch(err){
@@ -2855,30 +2835,36 @@ function openUserModal(id){
                   'auth/operation-not-allowed':'Operación no permitida.'
                 };
                 toast('No se pudo cambiar la contraseña: ' + (map[code] || err.message || 'error desconocido'), 'err');
-                // No abortamos el guardado del resto del perfil
               }
             }
             const saved = await saveUser(u);
-            if(!saved){
-              // El error específico ya se mostró en saveUserToFirestore
-              return;
-            }
+            if(!saved) return;
             closeModal(); toast('Usuario actualizado','ok'); renderUsuarios();
+            // Si la vista de horario está activa, re-renderizar para reflejar
+            // el nuevo nombre / color / horario del técnico editado.
+            const horarioView = document.getElementById('view-horario');
+            if(horarioView && horarioView.classList.contains('active')){
+              renderHorario();
+            }
+            // Lo mismo para pendientes / resumen / historial, que muestran nombres de técnicos.
+            const pendView = document.getElementById('view-pendientes');
+            if(pendView && pendView.classList.contains('active')) renderPendientes();
+            const resView = document.getElementById('view-resumen');
+            if(resView && resView.classList.contains('active')) renderResumen();
+            const histView = document.getElementById('view-historial');
+            if(histView && histView.classList.contains('active')) renderHistorial();
+            const miasView = document.getElementById('view-mias');
+            if(miasView && miasView.classList.contains('active')) renderMyRequests();
           } else {
-            // Crear nuevo usuario en Firebase Auth
-            // Nota: createUserWithEmailAndPassword cambia automáticamente la sesión al nuevo usuario.
-            // Para que el admin conserve su sesión, re-autenticamos al admin después.
             if(!password){ toast('La contraseña inicial es obligatoria para usuarios nuevos','err'); return; }
             if(password.length<8){ toast('La contraseña debe tener al menos 8 caracteres','err'); return; }
             if(!useFirebase || !fbauth){ toast('Firebase Auth no disponible','err'); return; }
-            // Si adminCreds es null (sesión restaurada por Firebase Auth), pedir contraseña
             if(!adminCreds || !adminCreds.email){
               const reauthOk = await promptAdminReauth();
               if(!reauthOk) return;
             }
             const cred = await fbauth.createUserWithEmailAndPassword(email, password);
             const fbUid = cred.user.uid;
-            // Construir el horario desde el modal (si el depto no es Admin)
             let schedule = null;
             let color = null;
             if(dept!=='Admin'){
@@ -2893,23 +2879,16 @@ function openUserModal(id){
                   schedule[day] = [];
                 }
               });
-              // Si el horario quedó vacío pero el nombre coincide con uno conocido, usar el de defecto
               const allEmpty = DAYS.every(d => !schedule[d] || schedule[d].length===0);
-              if(allEmpty && SCHEDULE_DEFAULT_BY_NAME[name]){
-                schedule = SCHEDULE_DEFAULT_BY_NAME[name];
-              }
-              // Color: usar el del nombre si existe, sino uno por defecto
+              if(allEmpty && SCHEDULE_DEFAULT_BY_NAME[name]) schedule = SCHEDULE_DEFAULT_BY_NAME[name];
               color = COLOR_DEFAULT_BY_NAME[name] || DEFAULT_COLOR_PALETTE[DB.users.filter(u=>u.dept===dept).length % DEFAULT_COLOR_PALETTE.length];
             }
-            // Guardar el perfil en Firestore usando el UID de Firebase como id
             const profile = { name, email, dept, role, active, createdAt: nowStr(), fbUid };
             if(schedule) profile.schedule = schedule;
             if(color) profile.color = color;
             await fbdb.collection('users').doc(fbUid).set(profile);
-            // Actualizar caché local
             DB.users.push({ id: fbUid, ...profile });
             try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }catch(_){}
-            // Re-autenticar al admin para restaurar su sesión
             try{
               await fbauth.signInWithEmailAndPassword(adminCreds.email, adminCreds.password);
             }catch(reauthErr){
@@ -2964,11 +2943,7 @@ function toggleModalPwd(btn, inputId){
 function handleImportJson(event){
   const file = event.target.files[0];
   if(!file) return;
-  // NO vaciamos event.target.value aquí: lo hacemos al final, después de tener
-  // las credenciales del admin confirmadas. Si lo vaciáramos antes, perderíamos
-  // el archivo cuando mostramos el modal de re-autenticación.
 
-  // Validar que el usuario sea admin
   if(!session || session.role !== 'admin'){
     toast('Solo el administrador puede importar usuarios.','err');
     event.target.value = '';
@@ -2980,10 +2955,11 @@ function handleImportJson(event){
     return;
   }
 
-  // Si adminCreds es null (sesión restaurada vía Firebase Auth al recargar),
-  // usamos promptAdminReauth() reutilizable (definida arriba de openUserModal).
+  const ensureAdminCreds = async () => {
+    if(adminCreds && adminCreds.email) return true;
+    return promptAdminReauth();
+  };
 
-  // Función común para leer el archivo y procesarlo
   const readAndProcess = () => {
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -3003,11 +2979,9 @@ function handleImportJson(event){
     reader.readAsText(file);
   };
 
-  // Si adminCreds es null, primero pedimos la contraseña. Si ya la tenemos,
-  // procedemos directamente sin mostrar el modal de re-autenticación.
   if(!adminCreds || !adminCreds.email){
     (async () => {
-      const ok = await promptAdminReauth();
+      const ok = await ensureAdminCreds();
       if(!ok){
         event.target.value = '';
         return;
@@ -3026,7 +3000,6 @@ function handleImportJson(event){
 // en Firebase Auth + Firestore, re-autenticando al admin después de cada uno.
 function processImportData(data){
   const usersToCreate = data.users;
-  // Validar cada usuario antes de empezar
   const errors = [];
   usersToCreate.forEach((u, i) => {
     if(!u.name) errors.push(`Fila ${i+1}: falta "name"`);
@@ -3045,7 +3018,6 @@ function processImportData(data){
     return;
   }
 
-  // Confirmar antes de proceder
   const resumen = usersToCreate.map(u => `<li><b>${u.name}</b> · ${u.email} · ${u.dept}</li>`).join('');
   openModal('Importar ' + usersToCreate.length + ' usuario(s)',
     `<p style="margin-bottom:10px">Se van a crear los siguientes usuarios en Firebase Auth + Firestore:</p>
@@ -3070,20 +3042,13 @@ function processImportData(data){
           const u = usersToCreate[i];
           if(btn){ btn.textContent = `Importando ${i+1}/${usersToCreate.length}…`; }
           try{
-            // Si el usuario ya existe en Firestore, lo saltamos
-            try{
-              const existing = await fbdb.collection('users').where('email','==',u.email.toLowerCase()).limit(1).get();
-              if(!existing.empty){
-                failed.push({user: u, reason: 'Ya existe un perfil con ese email en Firestore'});
-                continue;
-              }
-            }catch(_){}
-
-            // Crear en Firebase Auth (esto cambia la sesión al nuevo usuario)
+            const existing = await fbdb.collection('users').where('email','==',u.email.toLowerCase()).limit(1).get();
+            if(!existing.empty){
+              failed.push({user: u, reason: 'Ya existe un perfil con ese email en Firestore'});
+              continue;
+            }
             const cred = await fbauth.createUserWithEmailAndPassword(u.email, u.password);
             const fbUid = cred.user.uid;
-
-            // Construir perfil para Firestore (SIN password)
             const profile = {
               name: u.name,
               email: u.email.toLowerCase(),
@@ -3093,9 +3058,7 @@ function processImportData(data){
               createdAt: nowStr(),
               fbUid: fbUid
             };
-            if(u.schedule && typeof u.schedule === 'object'){
-              profile.schedule = u.schedule;
-            }
+            if(u.schedule && typeof u.schedule === 'object') profile.schedule = u.schedule;
             if(u.color){
               profile.color = u.color;
             } else {
@@ -3145,7 +3108,6 @@ function processImportData(data){
           }
         }
 
-        // Resumen final
         if(btn){ btn.textContent = origText; btn.disabled = false; }
         closeModal();
         renderUsuarios();
@@ -3495,15 +3457,10 @@ if('serviceWorker' in navigator){
 /* ===================== INIT ===================== */
 window.addEventListener('DOMContentLoaded', async ()=>{
   applyTheme(getStoredTheme());
-  // NO cargamos la BD aquí: las reglas de Firestore exigen un usuario autenticado
-  // para leer users/requests. Cargarla antes del login provocaba el warning
-  // "Missing or insufficient permissions". La BD se carga después del login.
   if(useFirebase && fbauth){
     fbauth.onAuthStateChanged(async (user)=>{
       if(user){
-        // Hay sesión activa en Firebase Auth. Cargar la BD completa AHORA que tenemos sesión.
         await loadDB();
-        // Validar que tenga perfil en Firestore.
         let userProfile = DB.users.find(u=>u.id===user.uid);
         if(!userProfile){
           try{
@@ -3527,7 +3484,6 @@ window.addEventListener('DOMContentLoaded', async ()=>{
           initApp();
         }
       } else {
-        // No hay sesión en Firebase Auth: si había una sesión local, limpiarla
         if(session){
           session = null;
           adminCreds = null;
@@ -3538,7 +3494,6 @@ window.addEventListener('DOMContentLoaded', async ()=>{
       }
     });
   } else {
-    // Fallback: si Firebase no está disponible, intentar restaurar desde sessionStorage
     const s = sessionStorage.getItem('session');
     if(s){ try{ const p=JSON.parse(s); if(p&&p.role&&p.userId){ login(p.role,p.userId); } }catch(e){} }
   }
