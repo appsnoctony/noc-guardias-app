@@ -3868,6 +3868,12 @@ css.textContent = `
 .ph-add{outline:2px solid #fff;outline-offset:-2px;font-weight:700}
 .ph-rem{background:transparent!important;border:1px dashed var(--muted-2);color:var(--muted)!important;text-decoration:line-through;opacity:.75}
 .ph-exp{margin-top:12px;width:100%}
+.ph-exp table.cal-sched tbody td,.ph-cell{height:auto!important;vertical-align:top}
+.ph-exp .cal-cell-block,.ph-cell .cal-cell-block{height:auto!important;min-height:22px;margin:2px;padding:3px 7px;flex-direction:row;align-items:center;justify-content:flex-start}
+.ph-cw{display:flex;flex-direction:column;gap:2px;padding:1px}
+.ph-exp .ph-add{outline:2px solid #fff;outline-offset:-2px;font-weight:700}
+.ph-exp .ph-rem{min-height:16px!important;padding:1px 7px!important;margin:1px 2px!important;font-size:10px;text-decoration:none!important;background:transparent!important;border:1px dashed var(--muted-2);color:var(--muted)!important;opacity:.85}
+.ph-exp .ph-rem .ccb-name{font-weight:500;font-size:10px}
 .ph-exp .cal-table-wrap{max-height:460px;overflow:auto}
 .ph-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 @media(max-width:700px){.ph-form{grid-template-columns:1fr}}
@@ -4286,8 +4292,8 @@ function calHtml(r){
       const blocks = cur.map(id=>{ const u=DB.users.find(x=>x.id===id); if(!u) return '';
         return `<div class="cal-cell-block ${old.includes(id)?'':'ph-add'}" style="background:${getUserColor(u)}"><span class="ccb-name">${shortName(u.name)}</span></div>`; }).join('')
         + old.filter(id=>!cur.includes(id)).map(id=>{ const u=DB.users.find(x=>x.id===id); if(!u) return '';
-        return `<div class="cal-cell-block ph-rem"><span class="ccb-name">${shortName(u.name)}</span></div>`; }).join('');
-      return `<td>${blocks||'<div class="cal-cell-empty">·</div>'}</td>`;
+        return `<div class="cal-cell-block ph-rem" title="Hora que se quita"><span class="ccb-name">✕ ${shortName(u.name)}</span></div>`; }).join('');
+      return `<td>${blocks?'<div class="ph-cw">'+blocks+'</div>':'<div class="cal-cell-empty">·</div>'}</td>`;
     }).join('');
     rows.push(`<tr><th>${formatHourRange(String(h).padStart(2,'0')+':00')}</th>${tds}</tr>`);
   }
