@@ -3863,6 +3863,8 @@ css.textContent = `
 .ph-blk.sel{outline:2px solid #fff;outline-offset:-2px;box-shadow:0 0 0 2px var(--accent)}
 .ph-x{position:absolute;top:1px;right:2px;background:rgba(0,0,0,.35);color:#fff;border-radius:3px;padding:0 5px;font-size:11px;line-height:14px;cursor:pointer}
 .ph-x:hover{background:var(--danger)}
+.ph-plus{position:absolute;top:1px;right:20px;background:rgba(255,255,255,.45);color:#000;border-radius:3px;padding:0 5px;font-size:11px;font-weight:700;line-height:14px;cursor:pointer}
+.ph-plus:hover{background:#fff}
 @media(max-width:700px){.ph-form{grid-template-columns:1fr}}
 `;
 document.head.appendChild(css);
@@ -3882,6 +3884,8 @@ document.getElementById('view-nueva').innerHTML = `
     <button class="btn ghost sm" onclick="PH.nav(-1)">← Semana anterior</button>
     <div class="ph-week" id="phWeek"></div>
     <button class="btn ghost sm" onclick="PH.nav(1)">Semana siguiente →</button>
+    <button class="btn secondary sm" onclick="PH.today()">📍 Semana actual</button>
+    <button class="btn ghost sm" id="phCopyBtn" onclick="PH.toggleCopy()">↔ Modo: mover</button>
     <span id="phTag" class="badge"></span>
   </div>
   <div class="ph-form">
@@ -3930,7 +3934,7 @@ window.getSchedule = function(userId, ws){
 
 /* ---------- Estado del editor ---------- */
 let E = fresh();
-function fresh(){ return {off:0, dept:null, grid:null, orig:null, sel:null, drag:null, editingId:null, reqUser:null}; }
+function fresh(){ return {off:0, dept:null, grid:null, orig:null, sel:null, drag:null, copy:false, editingId:null, reqUser:null}; }
 
 function meUser(){ return DB.users.find(u=>u.id===session.userId); }
 function users(){
@@ -3956,9 +3960,28 @@ function loadWeek(off){
 }
 function hoursOf(grid, uid, day){ return grid[day].filter(c=>c.includes(uid)).length; }
 function weekHours(grid, uid){ return DAYS.reduce((a,_,i)=>a+hoursOf(grid,uid,i),0); }
+/* Regla: máximo 12 horas CONSECUTIVAS, incluso si cruzan la medianoche
+   (y también contando el domingo anterior y el lunes siguiente). */
 function overLimit(list){
-  const out = [];
-  list.forEach(u=>DAYS.forEach((d,i)=>{ const h=hoursOf(E.grid,u.id,i); if(h>MAX_H) out.push(`${shortName(u.name)} · ${d} (${h}h)`); }));
+  const ws = wsOf(E.off), out = [];
+  const prev = buildGrid(list, addDaysStr(ws,-7)), next = buildGrid(list, addDaysStr(ws,7));
+  const N = 24*9;
+  const active = (uid,t)=> t<24 ? prev[6][t].includes(uid)
+                         : t<192 ? E.grid[Math.floor((t-24)/24)][(t-24)%24].includes(uid)
+                         : next[0][t-192].includes(uid);
+  const lbl = t=>{ const d=((Math.floor((t-24)/24))%7+7)%7; return DAYS[d]+' '+String(((t-24)%24+24)%24).padStart(2,'0')+':00'; };
+  list.forEach(u=>{
+    let start=null;
+    for(let t=0;t<=N;t++){
+      const on = t<N && active(u.id,t);
+      if(on && start===null) start=t;
+      if(!on && start!==null){
+        const len=t-start;
+        if(len>MAX_H && t>24 && start<192) out.push(`${shortName(u.name)} · ${len}h seguidas (${lbl(start)} → ${lbl(t)})`);
+        start=null;
+      }
+    }
+  });
   return out;
 }
 
@@ -3992,6 +4015,7 @@ window.renderEditor = function(){
         return `<div class="cal-cell-block ph-blk ${sel?'sel':''}" style="background:${getUserColor(u)}" draggable="true"
           ondragstart="PH.ds(event,${i},${h},'${uid}')" onclick="event.stopPropagation();PH.pick(${i},${h},'${uid}')">
           <span class="ccb-name">${shortName(u.name)}</span>
+          <span class="ph-plus" title="Extender 1 hora (toma el lugar de quien esté en esa hora)" onclick="event.stopPropagation();PH.ext(${i},${h},'${uid}')">+</span>
           <span class="ph-x" title="Quitar" onclick="event.stopPropagation();PH.del(${i},${h},'${uid}')">×</span></div>`;
       }).join('');
       if(lock) return `<td class="ph-cell ph-lock">${blocks||'·'}</td>`;
@@ -4009,18 +4033,19 @@ window.renderEditor = function(){
   const over = overLimit(list), al = $('phAlert');
   if(over.length){
     al.style.display='block'; al.style.background='var(--danger-soft)'; al.style.borderLeftColor='var(--danger)';
-    al.innerHTML = `⚠️ <b>Superan ${MAX_H} horas en un día:</b> ${over.join(', ')}. Corrígelo antes de enviar.`;
+    al.innerHTML = `⚠️ <b>Jornadas de más de ${MAX_H} horas consecutivas:</b> ${over.join(', ')}. Corrígelo antes de enviar.`;
   } else al.style.display='none';
 
   $('phFoot').innerHTML = E.sel
-    ? `<b>Bloque seleccionado:</b> haz clic en la celda destino para moverlo (o clic otra vez en el bloque para cancelar).`
-    : `<b>Arrastra</b> un bloque a otra celda, o haz <b>clic en el bloque</b> y luego clic en la celda destino · <b>＋</b> agrega tu turno en esa hora · <b>×</b> quita el bloque · Máximo ${MAX_H}h por día.`;
+    ? `<b>Bloque seleccionado:</b> haz clic en la celda destino para ${E.copy?'copiarlo':'moverlo'} (o clic otra vez en el bloque para cancelar).`
+    : `<b>Arrastra</b> un bloque (con <b>Ctrl</b> lo copias) o haz <b>clic en el bloque</b> y luego en la celda destino · <b>+</b> extiende el bloque 1 hora · <b>×</b> lo quita · Modo copiar: duplica en vez de mover · Máximo ${MAX_H}h <b>consecutivas</b>, aunque crucen la medianoche.`;
+  const cb=$('phCopyBtn'); cb.textContent = E.copy?'⧉ Modo: copiar':'↔ Modo: mover'; cb.className='btn sm '+(E.copy?'secondary':'ghost');
 };
 
 /* ---------- Acciones de la cuadrícula ---------- */
-function move(fi,fh,uid,ti,th){
+function move(fi,fh,uid,ti,th,copy){
   if(isLocked(ti)){ toast('Ese día ya pasó y no se puede editar.','err'); return; }
-  E.grid[fi][fh] = E.grid[fi][fh].filter(id=>id!==uid);
+  if(!(copy||E.copy)) E.grid[fi][fh] = E.grid[fi][fh].filter(id=>id!==uid);
   if(!E.grid[ti][th].includes(uid)) E.grid[ti][th].push(uid);
   E.sel = null; E.drag = null; renderEditor();
 }
@@ -4045,7 +4070,19 @@ window.PH = {
   },
   del(i,h,uid){ E.grid[i][h] = E.grid[i][h].filter(id=>id!==uid); E.sel=null; renderEditor(); },
   ds(ev,i,h,uid){ E.drag = {i,h,uid}; try{ ev.dataTransfer.setData('text/plain',uid); }catch(_){} },
-  drop(ev,i,h){ ev.preventDefault(); if(E.drag) move(E.drag.i,E.drag.h,E.drag.uid,i,h); }
+  drop(ev,i,h){ ev.preventDefault(); if(E.drag) move(E.drag.i,E.drag.h,E.drag.uid,i,h,ev.ctrlKey||ev.altKey); },
+  toggleCopy(){ E.copy=!E.copy; E.sel=null; renderEditor(); },
+  today(){
+    if(E.off===0 && !E.editingId){ toast('Ya estás en la semana actual.','ok'); return; }
+    if(dirty() && !confirm('Tienes cambios sin enviar en esta semana. ¿Descartarlos?')) return;
+    E.editingId=null; loadWeek(0); renderEditor();
+  },
+  ext(i,h,uid){
+    const t = h<23 ? h+1 : h-1;
+    const rem = E.grid[i][t].filter(id=>id!==uid);
+    if(rem.length) toast('Reemplazado: '+rem.map(userNameById).join(', ')+' ('+DAYS[i]+' '+String(t).padStart(2,"0")+':00)','warn');
+    E.grid[i][t]=[uid]; renderEditor();
+  }
 };
 
 window.resetEditor = function(){
@@ -4062,7 +4099,7 @@ window.sendDraft = function(){
   const tipo = $('phMotivo').value, det = $('phDetalle').value.trim();
   if(!tipo){ toast('Selecciona el motivo de la propuesta.','err'); return; }
   const list = users(), over = overLimit(list);
-  if(over.length){ toast('Hay días con más de '+MAX_H+'h: '+over.join(', '),'err'); return; }
+  if(over.length){ toast('Hay jornadas de más de '+MAX_H+'h consecutivas: '+over.join(', '),'err'); return; }
   if(!dirty()){ toast('No has hecho cambios en el calendario.','warn'); return; }
 
   const ws = wsOf(E.off), we = addDaysStr(ws,6);
