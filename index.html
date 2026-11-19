@@ -1108,6 +1108,33 @@
       </div>
     </section>
 
+    <!-- ============ HORAS EXTRA (ADMIN Y TÉCNICO) ============ -->
+    <section class="view" id="view-horasextra">
+      <div class="page-head">
+        <div>
+          <h2>Horas extra</h2>
+          <p>Control de horas extra trabajadas. Las horas extra se calculan automáticamente comparando el horario actual con las horas normales contratadas.</p>
+        </div>
+      </div>
+      <!-- Fila 1: Navegación por semana -->
+      <div class="filters" style="margin-bottom:10px">
+        <button class="btn ghost sm" onclick="horasExtraNav(-1)">← Semana anterior</button>
+        <button class="btn secondary sm" onclick="horasExtraNav(0)">📍 Semana actual</button>
+        <button class="btn ghost sm" onclick="horasExtraNav(1)">Semana siguiente →</button>
+      </div>
+      <!-- Fila 2: Filtro por rango de fechas -->
+      <div class="filters" style="margin-bottom:14px">
+        <span style="color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.5px;font-weight:600">📅 Rango:</span>
+        <input type="date" id="heFechaDesde" title="Desde">
+        <span style="color:var(--muted-2)">→</span>
+        <input type="date" id="heFechaHasta" title="Hasta">
+        <button class="btn sm" onclick="horasExtraRango()">🔍 Ver rango</button>
+        <button class="btn ghost sm" onclick="horasExtraLimpiarRango()">Limpiar</button>
+      </div>
+      <div class="cal-alert" id="heWeekInfo"></div>
+      <div id="horasExtraContent"></div>
+    </section>
+
     <!-- ============ USER: MIS SOLICITUDES ============ -->
     <section class="view" id="view-mias">
       <div class="page-head">
@@ -1396,6 +1423,62 @@ const COLOR_DEFAULT_BY_NAME = {
   'Diego Jara':'#14b8a6'
 };
 
+// Horas normales (contratadas) por técnico por día de la semana.
+// Todo lo que exceda estas horas en un día son horas extra.
+const NORMAL_HOURS_BY_NAME = {
+  'Danny Araya':                       { Lunes:6, Martes:6, Miércoles:6, Jueves:6, Viernes:6, Sábado:6, Domingo:6 },
+  'Nathaly Arias':                     { Lunes:8, Martes:8, Miércoles:8, Jueves:8, Viernes:0, Sábado:8, Domingo:8 },
+  'Luis Araya':                        { Lunes:8, Martes:8, Miércoles:8, Jueves:8, Viernes:8, Sábado:0, Domingo:8 },
+  'Angello Zamora':                    { Lunes:7, Martes:0, Miércoles:0, Jueves:0, Viernes:8, Sábado:8, Domingo:7 },
+  'Fabian Andrés Bustos Gonzalez':     { Lunes:6, Martes:6, Miércoles:6, Jueves:0, Viernes:0, Sábado:9, Domingo:6 },
+  'Anthony Arrieta':                   { Lunes:6, Martes:6, Miércoles:6, Jueves:6, Viernes:6, Sábado:6, Domingo:0 },
+  'Yoan de Jesús Fonseca Chaves':      { Lunes:6, Martes:0, Miércoles:6, Jueves:6, Viernes:6, Sábado:6, Domingo:6 },
+};
+
+// Devuelve las horas normales de un técnico para un día específico.
+function getNormalHours(userId, dayName){
+  const u = DB.users.find(x=>x.id===userId);
+  if(!u || !u.name) return 0;
+  const nameNorm = u.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  // Priorizar match por primer nombre (más específico)
+  let matchKey = Object.keys(NORMAL_HOURS_BY_NAME).find(k => {
+    const kNorm = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const firstName = kNorm.split(' ')[0];
+    return firstName.length > 3 && nameNorm.includes(firstName);
+  });
+  // Si no hay match por primer nombre, buscar por cualquier palabra de más de 4 letras
+  if(!matchKey){
+    matchKey = Object.keys(NORMAL_HOURS_BY_NAME).find(k => {
+      const kNorm = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const words = kNorm.split(' ').filter(w => w.length > 4);
+      return words.some(w => nameNorm.includes(w));
+    });
+  }
+  if(matchKey && NORMAL_HOURS_BY_NAME[matchKey][dayName] != null) return NORMAL_HOURS_BY_NAME[matchKey][dayName];
+  return 0;
+}
+
+// Calcula las horas extra de un técnico en una semana concreta.
+// Devuelve { total: number, days: [{day, normalHours, workedHours, extraHours}] }
+function calculateOvertime(userId, weekStart){
+  const u = DB.users.find(x=>x.id===userId);
+  if(!u) return { total:0, days:[] };
+  const sch = window.getSchedule ? window.getSchedule(userId, weekStart) : getSchedule(userId);
+  const days = [];
+  let total = 0;
+  DAYS.forEach(day => {
+    const segs = (sch && sch[day]) || [];
+    const workedHours = segs.reduce((a,s)=>a+shiftHours(s),0);
+    const normalHours = getNormalHours(userId, day);
+    const extraHours = Math.max(0, workedHours - normalHours);
+    if(workedHours > 0 || extraHours > 0){
+      days.push({ day, normalHours, workedHours, extraHours });
+      total += extraHours;
+    }
+  });
+  return { total, days };
+}
+
 // Paleta de colores para usuarios nuevos (cuando no tienen color asignado).
 const DEFAULT_COLOR_PALETTE = [
   '#3b82f6','#10b981','#f59e0b','#ef4444','#a78bfa','#22d3ee','#14b8a6','#facc15',
@@ -1636,8 +1719,8 @@ function buildTabs(){
   const nav = document.getElementById('navTabs');
   nav.innerHTML='';
   const tabs = session.role==='admin'
-    ? [['resumen','📊 Resumen'],['pendientes','⏳ Pendientes'],['horario','🗓️ Horario'],['historial','📋 Historial'],['usuarios','👥 Usuarios']]
-    : [['nueva','✏️ Proponer horario'],['mias','🗂️ Mis solicitudes'],['horario','🗓️ Mi horario']];
+    ? [['resumen','📊 Resumen'],['pendientes','⏳ Pendientes'],['horario','🗓️ Horario'],['horasextra','⏰ Horas Extra'],['historial','📋 Historial'],['usuarios','👥 Usuarios']]
+    : [['nueva','✏️ Proponer horario'],['mias','🗂️ Mis solicitudes'],['horario','🗓️ Mi horario'],['horasextra','⏰ Horas Extra']];
   tabs.forEach(([k,l])=>{
     const b=document.createElement('button');
     b.className='tab';b.textContent=l;b.dataset.tab=k;
@@ -1658,6 +1741,7 @@ function go(view){
   if(view==='historial') renderHistorial();
   if(view==='usuarios') renderUsuarios();
   if(view==='nueva') renderEditor();
+  if(view==='horasextra') renderHorasExtra();
   if(view==='mias') renderMyRequests();
 }
 
@@ -1713,6 +1797,191 @@ function detailSummary(r){
 }
 function emptyRow(cols,msg){
   return `<tr><td colspan="${cols}"><div class="empty"><div class="ico">📭</div>${msg}</div></td></tr>`;
+}
+
+/* ===================== HORAS EXTRA ===================== */
+let horasExtraOffset = 0;
+
+function horasExtraNav(dir){
+  horasExtraOffset = (dir===0) ? 0 : horasExtraOffset + dir;
+  renderHorasExtra();
+}
+
+function renderHorasExtra(dateFrom, dateTo){
+  const isRange = dateFrom && dateTo;
+  const ws = window.wsOf ? window.wsOf(horasExtraOffset) : fmtCalDate(getWeekDates(horasExtraOffset)[0]);
+  const we = addDaysStr(ws, 6);
+  const content = document.getElementById('horasExtraContent');
+  const weekInfo = document.getElementById('heWeekInfo');
+
+  // Función helper para calcular OT de un usuario (semana o rango)
+  function getOT(userId){
+    if(isRange){
+      return calculateOvertimeRange(userId, dateFrom, dateTo);
+    }
+    const ot = calculateOvertime(userId, ws);
+    return { total: ot.total, worked: ot.days.reduce((a,d)=>a+d.workedHours,0), normal: ot.days.reduce((a,d)=>a+d.normalHours,0), days: ot.days };
+  }
+
+  const label = isRange ? `Rango: ${fmtDayLabel(dateFrom)} al ${fmtDayLabel(dateTo)}` : `Semana del ${fmtDayLabel(ws)} al ${fmtDayLabel(we)}`;
+  weekInfo.innerHTML = `<b>${label}</b>`;
+
+  if(session.role === 'admin'){
+    const allUsers = DB.users.filter(u=>u.role!=='admin' && u.active);
+    let totalExtra = 0, totalWorked = 0, totalNormal = 0;
+    const rows = allUsers.map(u=>{
+      const ot = getOT(u.id);
+      totalExtra += ot.total;
+      totalWorked += ot.worked;
+      totalNormal += ot.normal;
+      const detailBtn = ot.total > 0 ? `<button class="btn ghost sm" onclick="viewOvertimeDetail('${u.id}','${ws}'${isRange?`,'${dateFrom}','${dateTo}'`:''})">📊 Ver detalle</button>` : '';
+      return `<tr>
+        <td><div class="who"><div class="avatar ${deptClass(u.dept)}">${initials(u.name)}</div><div class="meta"><b>${u.name}</b><small>${u.dept}</small></div></div></td>
+        <td>${ot.worked}h</td>
+        <td>${ot.normal}h</td>
+        <td style="color:${ot.total>0?'var(--warning)':'var(--muted-2)'};font-weight:${ot.total>0?'700':'400'}">${ot.total}h ${ot.total>0?'⚠️':''}</td>
+        <td class="actions">${detailBtn}</td>
+      </tr>`;
+    }).join('');
+
+    content.innerHTML = `
+      <div class="stats">
+        <div class="stat warn"><div class="label">Total horas extra</div><div class="val">${totalExtra}h</div><div class="sub">${label}</div></div>
+        <div class="stat"><div class="label">Técnicos con extra</div><div class="val">${allUsers.filter(u=>getOT(u.id).total > 0).length}</div><div class="sub">de ${allUsers.length} técnicos</div></div>
+        <div class="stat ok"><div class="label">Horas normales</div><div class="val">${totalNormal}h</div><div class="sub">Contratadas</div></div>
+        <div class="stat"><div class="label">Horas trabajadas</div><div class="val">${totalWorked}h</div><div class="sub">Incluye extra</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Detalle por técnico</h3>
+        </div>
+        <div class="panel-body flush">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Técnico</th><th>Horas trabajadas</th><th>Horas normales</th><th>Horas extra</th><th>Acciones</th></tr></thead>
+              <tbody>${rows || emptyRow(5,'Sin técnicos activos.')}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+  } else {
+    const me = DB.users.find(u=>u.id===session.userId);
+    if(!me){ content.innerHTML = '<p style="color:var(--muted)">No se pudo cargar tu perfil.</p>'; return; }
+    const ot = getOT(me.id);
+    const daysHtml = ot.days.map(d=>{
+      const extraColor = d.extraHours > 0 ? 'var(--warning)' : 'var(--muted-2)';
+      const extraWeight = d.extraHours > 0 ? '700' : '400';
+      const dateLabel = isRange && d.date ? `${fmtDayLabel(d.date)} (${d.day})` : d.day;
+      return `<tr>
+        <td>${dateLabel}</td>
+        <td>${d.workedHours}h</td>
+        <td>${d.normalHours}h</td>
+        <td style="color:${extraColor};font-weight:${extraWeight}">${d.extraHours}h ${d.extraHours>0?'⚠️':''}</td>
+      </tr>`;
+    }).join('');
+
+    content.innerHTML = `
+      <div class="stats">
+        <div class="stat warn"><div class="label">Mis horas extra</div><div class="val">${ot.total}h</div><div class="sub">${label}</div></div>
+        <div class="stat"><div class="label">Horas trabajadas</div><div class="val">${ot.worked}h</div><div class="sub">Total</div></div>
+        <div class="stat ok"><div class="label">Horas normales</div><div class="val">${ot.normal}h</div><div class="sub">Contratadas</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Mi detalle · ${me.name}</h3>
+          <span class="badge ${me.dept==='NOC'?'noc':'guardia'}">${me.dept}</span>
+        </div>
+        <div class="panel-body flush">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>${isRange?'Fecha':'Día'}</th><th>Horas trabajadas</th><th>Horas normales</th><th>Horas extra</th></tr></thead>
+              <tbody>${daysHtml || emptyRow(4,'Sin horas trabajadas en este período.')}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      ${ot.total > 0 ? `<div class="cal-alert" style="background:var(--warning-soft);border-left-color:var(--warning)">⚠️ Tienes <b>${ot.total} horas extra</b>. Estas se generan automáticamente cuando trabajas más de tus horas normales contratadas.</div>` : ''}
+    `;
+  }
+}
+
+// Calcula horas extra de un técnico en un rango de fechas (puede abarcar varias semanas)
+// Devuelve { total, worked, normal, days: [{date, day, normalHours, workedHours, extraHours}] }
+function calculateOvertimeRange(userId, dateFrom, dateTo){
+  const u = DB.users.find(x=>x.id===userId);
+  if(!u) return { total:0, worked:0, normal:0, days:[] };
+  const days = [];
+  let total = 0, worked = 0, normal = 0;
+  let cur = dateFrom;
+  let guard = 0;
+  while(cur <= dateTo && guard < 400){
+    const dayName = dayNameOf(cur);
+    // Determinar a qué semana pertenece esta fecha y obtener el schedule
+    const monday = addDaysStr(cur, -((dateFromStr(cur).getDay()+6)%7));
+    const sch = window.getSchedule ? window.getSchedule(userId, monday) : getSchedule(userId);
+    const segs = (sch && sch[dayName]) || [];
+    // Verificar si esta fecha cae en el rango del lunes de esa semana
+    // Solo contamos si la fecha está dentro del rango del schedule de esa semana
+    const workedHours = segs.reduce((a,s)=>a+shiftHours(s),0);
+    const normalHours = getNormalHours(userId, dayName);
+    const extraHours = Math.max(0, workedHours - normalHours);
+    if(workedHours > 0 || extraHours > 0){
+      days.push({ date: cur, day: dayName, normalHours, workedHours, extraHours });
+      total += extraHours;
+      worked += workedHours;
+      normal += normalHours;
+    }
+    cur = addDaysStr(cur, 1);
+    guard++;
+  }
+  return { total, worked, normal, days };
+}
+
+// Aplica el filtro de rango de fechas
+function horasExtraRango(){
+  const desde = document.getElementById('heFechaDesde').value;
+  const hasta = document.getElementById('heFechaHasta').value;
+  if(!desde || !hasta){ toast('Selecciona ambas fechas del rango.','err'); return; }
+  if(desde > hasta){ toast('La fecha "Desde" debe ser anterior a "Hasta".','err'); return; }
+  renderHorasExtra(desde, hasta);
+}
+
+function horasExtraLimpiarRango(){
+  document.getElementById('heFechaDesde').value = '';
+  document.getElementById('heFechaHasta').value = '';
+  renderHorasExtra();
+}
+
+// Muestra el detalle de horas extra de un técnico en un modal (admin)
+function viewOvertimeDetail(userId, ws, dateFrom, dateTo){
+  const u = DB.users.find(x=>x.id===userId);
+  if(!u) return;
+  const isRange = dateFrom && dateTo;
+  const ot = isRange ? calculateOvertimeRange(userId, dateFrom, dateTo) : calculateOvertime(userId, ws);
+  const label = isRange ? `Rango: ${fmtDayLabel(dateFrom)} al ${fmtDayLabel(dateTo)}` : `Semana del ${fmtDayLabel(ws)} al ${fmtDayLabel(addDaysStr(ws,6))}`;
+  const rows = ot.days.map(d=>{
+    const dayLabel = isRange && d.date ? `${fmtDayLabel(d.date)} (${d.day})` : d.day;
+    return `<tr>
+      <td><b>${dayLabel}</b></td>
+      <td>${d.workedHours}h</td>
+      <td>${d.normalHours}h</td>
+      <td style="color:${d.extraHours>0?'var(--warning)':'var(--muted-2)'};font-weight:${d.extraHours>0?'700':'400'}">${d.extraHours}h ${d.extraHours>0?'⚠️':''}</td>
+    </tr>`;
+  }).join('');
+  openModal(`Horas extra · ${u.name}`,
+    `<p style="margin-bottom:10px">${label}</p>
+     <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px">
+       <span style="font-size:13px;color:var(--muted)">Total trabajado: <b style="color:var(--text)">${ot.worked||(ot.days.reduce((a,d)=>a+d.workedHours,0))}h</b></span>
+       <span style="font-size:13px;color:var(--muted)">Normal: <b style="color:var(--text)">${ot.normal||(ot.days.reduce((a,d)=>a+d.normalHours,0))}h</b></span>
+       <span style="font-size:13px;color:var(--warning)"><b>Extra: ${ot.total}h</b></span>
+     </div>
+     <table style="width:100%;font-size:13px">
+       <thead><tr><th style="text-align:left;padding:8px 0;color:var(--muted)">${isRange?'Fecha':'Día'}</th><th style="text-align:left;padding:8px 0;color:var(--muted)">Trabajadas</th><th style="text-align:left;padding:8px 0;color:var(--muted)">Normales</th><th style="text-align:left;padding:8px 0;color:var(--muted)">Extra</th></tr></thead>
+       <tbody>${rows || '<tr><td colspan="4" style="color:var(--muted-2);padding:20px;text-align:center">Sin horas trabajadas en este período.</td></tr>'}</tbody>
+     </table>`,
+    [{label:'Cerrar',cls:'ghost',onclick:closeModal}]
+  );
 }
 
 /* ===================== ADMIN: PENDIENTES ===================== */
