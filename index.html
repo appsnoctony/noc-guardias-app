@@ -1416,6 +1416,8 @@ function getSchedule(userId){
 // por nombre; si tampoco, asigna uno por posición en el departamento.
 function getUserColor(u){
   if(!u) return '#64748b';
+  // Forzar color rosado para Nathaly (sobreescribe cualquier valor en Firestore)
+  if(u.name && u.name.includes('Nathaly')) return '#ec4899';
   if(u.color) return u.color;
   if(u.name && COLOR_DEFAULT_BY_NAME[u.name]) return COLOR_DEFAULT_BY_NAME[u.name];
   // Asignar color por índice en el depto (para usuarios nuevos)
