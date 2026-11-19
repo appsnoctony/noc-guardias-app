@@ -1027,7 +1027,7 @@
               <thead>
                 <tr>
                   <th>Solicitante</th><th>Depto</th><th>Tipo</th><th>Detalle</th>
-                  <th>Creación</th><th>Resolución</th><th>Estado</th>
+                  <th>Creación</th><th>Resolución</th><th>Estado</th><th>Acciones</th>
                 </tr>
               </thead>
               <tbody id="histRows"></tbody>
@@ -1993,6 +1993,71 @@ function detectCalendarConflicts(req){
 
 function reqUserName(r){ const u=DB.users.find(x=>x.id===r.requesterId); return u?u.name:'—'; }
 
+// Abre un modal mostrando el calendario propuesto de una solicitud
+function viewCalendarInModal(id){
+  const r = DB.requests.find(x=>x.id===id);
+  if(!r){ toast('Solicitud no encontrada','err'); return; }
+  const u = DB.users.find(x=>x.id===r.requesterId)||{name:'?'};
+  // Usar la funcion calHtml del segundo script si esta disponible
+  let calContent = '';
+  if(r.type==='calendario' && r.weekStart && r.schedules){
+    // Construir el calendario manualmente si calHtml no esta disponible
+    const list = DB.users.filter(x=>x.dept===r.dept && x.role!=='admin' && x.active);
+    const dates = getWeekDates(Math.round((dateFromStr(r.weekStart)-dateFromStr(wsOf(0)))/(7*86400000)));
+    const head = dates.map((d,i)=>`<th class="day-col"><span class="day-name">${DAYS[i]}</span><span class="day-date">${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}</span></th>`).join('');
+    // Construir grids de propuesta y base
+    const propGrid = DAYS.map(()=>Array.from({length:24},()=>[]));
+    const baseGrid = DAYS.map(()=>Array.from({length:24},()=>[]));
+    list.forEach(u=>{
+      const propSched = r.schedules[u.id]||{};
+      const baseSched = r.base ? (r.base[u.id]||{}) : (getSchedule(u.id));
+      DAYS.forEach((day,i)=>{
+        scheduleHoursForDay(propSched,day).forEach(h=>{ if(!propGrid[i][h].includes(u.id)) propGrid[i][h].push(u.id); });
+        scheduleHoursForDay(baseSched,day).forEach(h=>{ if(!baseGrid[i][h].includes(u.id)) baseGrid[i][h].push(u.id); });
+      });
+    });
+    const rows = [];
+    for(let h=0;h<24;h++){
+      const tds = DAYS.map((_,i)=>{
+        const cur = propGrid[i][h], old = baseGrid[i][h];
+        const blocks = cur.map(id=>{
+          const tu = DB.users.find(x=>x.id===id); if(!tu) return '';
+          const isNew = !old.includes(id);
+          // Buscar quien fue removido de esta celda (para mostrar "cambio con")
+          const removed = old.filter(x=>!cur.includes(x));
+          const cambioCon = (isNew && removed.length>0) ? removed.map(rid=>{
+            const ru = DB.users.find(x=>x.id===rid);
+            return ru ? shortName(ru.name) : '';
+          }).filter(Boolean).join(', ') : '';
+          const cambioTxt = cambioCon ? ` · cambio con ${cambioCon}` : '';
+          return `<div class="cal-cell-block ${isNew?'ph-add':''}" style="background:${getUserColor(tu)}">
+            <span class="ccb-name">${shortName(tu.name)}${cambioCon?' <small style="opacity:.8">↔ '+esc(cambioCon)+'</small>':''}</span>
+            <span class="ccb-sub">${String(h).padStart(2,'0')}:00-${String((h+1)%24).padStart(2,'0')}:00${cambioTxt}</span>
+          </div>`;
+        }).join('');
+        const removed = old.filter(id=>!cur.includes(id)).map(id=>{
+          const tu = DB.users.find(x=>x.id===id); if(!tu) return '';
+          return `<div class="cal-cell-block ph-rem" title="Hora que se quita"><span class="ccb-name">✕ ${shortName(tu.name)}</span></div>`;
+        }).join('');
+        return `<td>${blocks||removed||'<div class="cal-cell-empty">·</div>'}</td>`;
+      }).join('');
+      rows.push(`<tr><th>${formatHourRange(String(h).padStart(2,'0')+':00')}</th>${tds}</tr>`);
+    }
+    const legend = list.map(u=>`<span class="lg"><i style="background:${getUserColor(u)}"></i>${u.name}</span>`).join('')
+      + `<span class="lg"><i style="background:var(--muted-2);outline:2px solid #fff"></i>Hora nueva</span><span class="lg"><i style="border:1px dashed var(--muted-2)"></i>Hora que se quita</span>`;
+    calContent = `<div class="legend-schedule">${legend}</div><div class="cal-table-wrap" style="max-height:60vh;overflow:auto"><table class="cal-sched"><thead><tr><th class="time-col">Franja</th>${head}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+  } else {
+    calContent = '<p style="color:var(--muted);padding:20px">Esta solicitud no tiene un calendario asociado para mostrar.</p>';
+  }
+  const range = r.weekStart ? `Semana del ${fmtDayLabel(r.weekStart)} al ${fmtDayLabel(addDaysStr(r.weekStart,6))}` : '';
+  openModal(`Calendario propuesto · ${u.name}`,
+    `<p style="margin-bottom:10px">${range} · Estado: <span class="badge ${r.status}"><span class="bdot"></span>${r.status}</span></p>
+     ${r.motivo?`<div class="req-reason" style="margin-bottom:14px">"${esc(r.motivo)}"</div>`:''}
+     ${calContent}`,
+    [{label:'Cerrar',cls:'ghost',onclick:closeModal}]
+  );
+}
+
 function viewReq(id){
   const r = DB.requests.find(x=>x.id===id); if(!r) return;
   const u = DB.users.find(x=>x.id===r.requesterId)||{};
@@ -2497,6 +2562,7 @@ function renderHistorial(){
   const rows=document.getElementById('histRows');
   rows.innerHTML = list.length? list.map(r=>{
     const u=DB.users.find(x=>x.id===r.requesterId)||{name:'?',dept:r.dept};
+    const calBtn = (r.type==='calendario' && r.weekStart) ? `<button class="btn ghost sm" onclick="viewCalendarInModal('${r.id}')">📅 Ver calendario</button>` : '';
     return `<tr>
       <td><div class="who"><div class="avatar ${deptClass(r.dept)}">${initials(u.name)}</div><div class="meta"><b>${u.name}</b><small>${r.createdAt.split(' ')[0]}</small></div></div></td>
       <td><span class="badge ${r.dept==='NOC'?'noc':'guardia'}">${r.dept}</span></td>
@@ -2505,8 +2571,9 @@ function renderHistorial(){
       <td>${r.createdAt}</td>
       <td>${r.resolvedAt?r.resolvedAt:'<span style="color:var(--muted-2)">—</span>'}</td>
       <td><span class="badge ${r.status}"><span class="bdot"></span>${r.status}</span></td>
+      <td class="actions">${calBtn}</td>
     </tr>`;
-  }).join('') : emptyRow(7,'No hay solicitudes con los filtros aplicados.');
+  }).join('') : emptyRow(8,'No hay solicitudes con los filtros aplicados.');
 }
 
 // Devuelve las fechas relevantes de una solicitud para el filtro por rango
@@ -4006,7 +4073,12 @@ window.renderEditor = function(){
     grid.innerHTML = '<p style="color:var(--muted);padding:20px">El editor es para técnicos. Como administrador aprueba o edita propuestas desde Pendientes.</p>';
     return;
   }
-  if(!E.grid) loadWeek(E.off);
+  if(!E.grid) {
+    loadWeek(E.off);
+    // Limpiar campos de motivo y detalle en cada carga nueva de semana
+    const m = $('phMotivo'); if(m && !E.editingId) m.value = '';
+    const d = $('phDetalle'); if(d && !E.editingId) d.value = '';
+  }
   const ws = wsOf(E.off), dates = getWeekDates(E.off), list = users();
   const today = todayStr();
 
@@ -4022,13 +4094,22 @@ window.renderEditor = function(){
   for(let h=0; h<24; h++){
     const tds = DAYS.map((day,i)=>{
       const ids = E.grid[i][h], lock = isLocked(i);
+      // Detectar quien fue removido de esta celda respecto al original
+      const origIds = E.orig[i][h] || [];
+      const removedIds = origIds.filter(id=>!ids.includes(id));
       const blocks = ids.map(uid=>{
         const u = DB.users.find(x=>x.id===uid); if(!u) return '';
         const sel = E.sel && E.sel.i===i && E.sel.h===h && E.sel.uid===uid;
-        if(lock) return `<div class="cal-cell-block" style="background:${getUserColor(u)}"><span class="ccb-name">${shortName(u.name)}</span></div>`;
+        const isNew = !origIds.includes(uid);
+        const cambioCon = (isNew && removedIds.length>0) ? removedIds.map(rid=>{
+          const ru = DB.users.find(x=>x.id===rid);
+          return ru ? shortName(ru.name) : '';
+        }).filter(Boolean).join(', ') : '';
+        const cambioLabel = cambioCon ? ` <small style="opacity:.85;font-size:9px">↔ ${esc(cambioCon)}</small>` : '';
+        if(lock) return `<div class="cal-cell-block" style="background:${getUserColor(u)}"><span class="ccb-name">${shortName(u.name)}${cambioLabel}</span></div>`;
         return `<div class="cal-cell-block ph-blk ${sel?'sel':''}" style="background:${getUserColor(u)}" draggable="true"
           ondragstart="PH.ds(event,${i},${h},'${uid}')" onclick="event.stopPropagation();PH.pick(${i},${h},'${uid}')">
-          <span class="ccb-name">${shortName(u.name)}</span>
+          <span class="ccb-name">${shortName(u.name)}${cambioLabel}</span>
           <span class="ph-plus" title="Extender 1 hora (toma el lugar de quien esté en esa hora)" onclick="event.stopPropagation();PH.ext(${i},${h},'${uid}')">+</span>
           <span class="ph-x" title="Quitar" onclick="event.stopPropagation();PH.del(${i},${h},'${uid}')">×</span></div>`;
       }).join('');
@@ -4289,8 +4370,15 @@ function calHtml(r){
   for(let h=0;h<24;h++){
     const tds = DAYS.map((_,i)=>{
       const cur = prop[i][h], old = base[i][h];
+      const removedIds = old.filter(id=>!cur.includes(id));
       const blocks = cur.map(id=>{ const u=DB.users.find(x=>x.id===id); if(!u) return '';
-        return `<div class="cal-cell-block ${old.includes(id)?'':'ph-add'}" style="background:${getUserColor(u)}"><span class="ccb-name">${shortName(u.name)}</span></div>`; }).join('')
+        const isNew = !old.includes(id);
+        const cambioCon = (isNew && removedIds.length>0) ? removedIds.map(rid=>{
+          const ru = DB.users.find(x=>x.id===rid);
+          return ru ? shortName(ru.name) : '';
+        }).filter(Boolean).join(', ') : '';
+        const cambioLabel = cambioCon ? ` <small style="opacity:.85;font-size:9px">↔ ${esc(cambioCon)}</small>` : '';
+        return `<div class="cal-cell-block ${isNew?'ph-add':''}" style="background:${getUserColor(u)}"><span class="ccb-name">${shortName(u.name)}${cambioLabel}</span></div>`; }).join('')
         + old.filter(id=>!cur.includes(id)).map(id=>{ const u=DB.users.find(x=>x.id===id); if(!u) return '';
         return `<div class="cal-cell-block ph-rem" title="Hora que se quita"><span class="ccb-name">✕ ${shortName(u.name)}</span></div>`; }).join('');
       return `<td>${blocks?'<div class="ph-cw">'+blocks+'</div>':'<div class="cal-cell-empty">·</div>'}</td>`;
