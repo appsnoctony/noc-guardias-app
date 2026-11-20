@@ -4315,7 +4315,7 @@ function users(){
   const dept = E.dept || (meUser()||{}).dept;
   return DB.users.filter(u=>u.dept===dept && u.role!=='admin' && u.active);
 }
-const isLocked = i => addDaysStr(wsOf(E.off), i) <= todayStr();
+const isLocked = i => addDaysStr(wsOf(E.off), i) < todayStr();
 const dirty = () => JSON.stringify(E.grid) !== JSON.stringify(E.orig);
 
 function buildGrid(list, ws){
