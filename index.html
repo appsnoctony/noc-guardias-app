@@ -1416,7 +1416,7 @@ const COLOR_DEFAULT_BY_NAME = {
   'Angello Zamora':'#facc15',
   'Danny Araya':'#3b82f6',
   'Nathaly Arias':'#ec4899',
-  'Luis Araya':'#ef4444',
+  'Luis Araya':'#22c55e',
   'Yoan de Jesús Fonseca Chaves':'#22d3ee',
   'Dereck Ramses Vargas Gomez':'#a78bfa',
   'Fabian Andrés Bustos Gonzalez':'#f59e0b',
@@ -1425,57 +1425,263 @@ const COLOR_DEFAULT_BY_NAME = {
 
 // Horas normales (contratadas) por técnico por día de la semana.
 // Todo lo que exceda estas horas en un día son horas extra.
-const NORMAL_HOURS_BY_NAME = {
-  'Danny Araya':                       { Lunes:6, Martes:6, Miércoles:6, Jueves:6, Viernes:6, Sábado:6, Domingo:6 },
-  'Nathaly Arias':                     { Lunes:8, Martes:8, Miércoles:8, Jueves:8, Viernes:0, Sábado:8, Domingo:8 },
-  'Luis Araya':                        { Lunes:8, Martes:8, Miércoles:8, Jueves:8, Viernes:8, Sábado:0, Domingo:8 },
-  'Angello Zamora':                    { Lunes:7, Martes:0, Miércoles:0, Jueves:0, Viernes:8, Sábado:8, Domingo:7 },
-  'Fabian Andrés Bustos Gonzalez':     { Lunes:6, Martes:6, Miércoles:6, Jueves:0, Viernes:0, Sábado:9, Domingo:6 },
-  'Anthony Arrieta':                   { Lunes:6, Martes:6, Miércoles:6, Jueves:6, Viernes:6, Sábado:6, Domingo:0 },
-  'Yoan de Jesús Fonseca Chaves':      { Lunes:6, Martes:0, Miércoles:6, Jueves:6, Viernes:6, Sábado:6, Domingo:6 },
+// ===================== CÁLCULO DE HORAS EXTRA – LEGISLACIÓN COSTA RICA =====================
+//
+// Tipos de jornada según Código de Trabajo CR:
+//   - Diurna:   05:00-19:00 → máx 8h/día, 48h/semana
+//   - Nocturna: 19:00-05:00 → máx 6h/día, 36h/semana
+//   - Mixta:    combina ambas → máx 7h/día, 42h/semana
+//     (si tiene ≥3.5h nocturnas, se considera nocturna)
+//
+// Jornada acumulativa (solo Luis Araya): mixta acumulativa → máx 8h/día, 48h/semana
+//
+// Límite máximo: 12h total (ordinaria + extra) por día calendario.
+//
+// Parámetros particulares:
+//   Luis Araya:    4h extra programadas Lun-Jue (jornada mixta acumulativa)
+//   Angello Zamora: 1h extra en turno continuo Dom-Lun 22:00-05:00
+//   Danny Araya:   Revisar turnos nocturnos de 7 y 8h
+//   Nathaly Arias: Jornada diurna, 48h semanales sin extra si cumple límites diarios
+//
+// Turnos continuos que cruzan medianoche se unen en un solo turno.
+
+// Configuración por colaborador: tipo de jornada, acumulativa, y horas extra programadas
+const OVERTIME_CONFIG = {
+  'Danny Araya': {
+    jornada: 'nocturna', acumulativa: false,
+    extraProgramada: {}
+  },
+  'Nathaly Arias': {
+    jornada: 'diurna', acumulativa: false,
+    extraProgramada: {}
+  },
+  'Luis Araya': {
+    jornada: 'mixta', acumulativa: true,
+    extraProgramada: {}
+  },
+  'Angello Zamora': {
+    jornada: 'mixta', acumulativa: false,
+    extraProgramada: {}
+  },
+  'Fabian Andrés Bustos Gonzalez': {
+    jornada: 'mixta', acumulativa: false,
+    extraProgramada: {}
+  },
+  'Anthony Arrieta': {
+    jornada: 'mixta', acumulativa: false,
+    extraProgramada: {}
+  },
+  'Yoan de Jesús Fonseca Chaves': {
+    jornada: 'mixta', acumulativa: false,
+    extraProgramada: {}
+  },
 };
 
-// Devuelve las horas normales de un técnico para un día específico.
-function getNormalHours(userId, dayName){
+// Límites máximos por tipo de jornada (ordinarias diarias)
+const JORNADA_LIMITES = {
+  'diurna':   { diario: 8, semanal: 48 },
+  'nocturna': { diario: 6, semanal: 36 },
+  'mixta':    { diario: 7, semanal: 42 },
+  'mixta_acumulativa': { diario: 8, semanal: 48 }
+};
+
+// Busca la configuración de un técnico por nombre (matching flexible)
+function getOvertimeConfig(userId){
   const u = DB.users.find(x=>x.id===userId);
-  if(!u || !u.name) return 0;
+  if(!u || !u.name) return null;
   const nameNorm = u.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  // Priorizar match por primer nombre (más específico)
-  let matchKey = Object.keys(NORMAL_HOURS_BY_NAME).find(k => {
+  let matchKey = Object.keys(OVERTIME_CONFIG).find(k => {
     const kNorm = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const firstName = kNorm.split(' ')[0];
     return firstName.length > 3 && nameNorm.includes(firstName);
   });
-  // Si no hay match por primer nombre, buscar por cualquier palabra de más de 4 letras
   if(!matchKey){
-    matchKey = Object.keys(NORMAL_HOURS_BY_NAME).find(k => {
+    matchKey = Object.keys(OVERTIME_CONFIG).find(k => {
       const kNorm = k.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const words = kNorm.split(' ').filter(w => w.length > 4);
       return words.some(w => nameNorm.includes(w));
     });
   }
-  if(matchKey && NORMAL_HOURS_BY_NAME[matchKey][dayName] != null) return NORMAL_HOURS_BY_NAME[matchKey][dayName];
-  return 0;
+  return matchKey ? OVERTIME_CONFIG[matchKey] : { jornada:'mixta', acumulativa:false, extraProgramada:{} };
 }
 
-// Calcula las horas extra de un técnico en una semana concreta.
-// Devuelve { total: number, days: [{day, normalHours, workedHours, extraHours}] }
+// Determina el tipo de jornada de un turno basándose en sus horas de inicio y fin.
+// Diurna: 05:00-19:00, Nocturna: 19:00-05:00, Mixta: combina ambas.
+// Si tiene ≥3.5h nocturnas, se considera nocturna.
+function determinarJornadaTurno(horaInicio, horaFin){
+  // Convertir a minutos
+  let inicio = horaInicio * 60;
+  let fin = horaFin * 60;
+  if(fin <= inicio) fin += 24 * 60; // cruzó medianoche
+  // Calcular horas diurnas (05:00-19:00 = 300-1140 min)
+  let horasDiurnas = 0, horasNocturnas = 0;
+  for(let m = inicio; m < fin; m++){
+    const horaDelDia = m % (24 * 60);
+    if(horaDelDia >= 300 && horaDelDia < 1140) horasDiurnas++;
+    else horasNocturnas++;
+  }
+  horasDiurnas /= 60;
+  horasNocturnas /= 60;
+  if(horasNocturnas >= 3.5) return 'nocturna';
+  if(horasDiurnas > 0 && horasNocturnas > 0) return 'mixta';
+  if(horasDiurnas > 0) return 'diurna';
+  return 'nocturna';
+}
+
+// Devuelve el límite diario de horas ordinarias para un técnico en un día.
+function getNormalHours(userId, dayName){
+  const config = getOvertimeConfig(userId);
+  if(!config) return 8;
+  const tipoJornada = config.acumulativa ? 'mixta_acumulativa' : config.jornada;
+  return JORNADA_LIMITES[tipoJornada]?.diario || 8;
+}
+
+// Calcula las horas extra de un técnico en una semana, siguiendo la legislación CR.
+// Considera: tipo de jornada, turnos continuos que cruzan medianoche,
+// límites diarios y semanales, y parámetros particulares.
+// Devuelve { total, days: [{day, normalHours, workedHours, extraHours, jornadaTipo, alerta12h}] }
 function calculateOvertime(userId, weekStart){
   const u = DB.users.find(x=>x.id===userId);
   if(!u) return { total:0, days:[] };
+  const config = getOvertimeConfig(userId);
+  if(!config) return { total:0, days:[] };
   const sch = window.getSchedule ? window.getSchedule(userId, weekStart) : getSchedule(userId);
+
+  // 1. Recolectar TODOS los segmentos de la semana en una lista plana
+  // Cada item: { dayIdx, dayName, inicio, fin, raw }
+  // Si fin <= inicio, el turno cruza medianoche (se suma 24 a fin)
+  const allSegs = [];
+  DAYS.forEach((day, dayIdx) => {
+    const segs = (sch && sch[day]) || [];
+    segs.forEach(seg => {
+      const m = seg.match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
+      if(!m) return;
+      let inicio = parseInt(m[1]) + parseInt(m[2])/60;
+      let fin = parseInt(m[3]) + parseInt(m[4])/60;
+      allSegs.push({ dayIdx, dayName: day, inicio, fin, raw: seg });
+    });
+  });
+
+  // También obtener segmentos del día ANTERIOR (domingo de la semana previa)
+  // por si un turno del domingo cruza al lunes de esta semana
+  const prevWeekStart = weekStart ? addDaysStr(weekStart, -7) : null;
+  if(prevWeekStart){
+    const prevSch = window.getSchedule ? window.getSchedule(userId, prevWeekStart) : getSchedule(userId);
+    const prevDomingo = prevSch?.Domingo || [];
+    prevDomingo.forEach(seg => {
+      const m = seg.match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
+      if(!m) return;
+      let inicio = parseInt(m[1]) + parseInt(m[2])/60;
+      let fin = parseInt(m[3]) + parseInt(m[4])/60;
+      // Solo nos interesan los que cruzan medianoche (fin <= inicio, o sea empiezan noche del domingo)
+      if(fin <= inicio || fin === 24){
+        allSegs.push({ dayIdx: -1, dayName: 'Domingo(prev)', inicio, fin, raw: seg });
+      }
+    });
+  }
+
+  // Y del día SIGUIENTE (lunes de la semana siguiente) por si un turno del domingo de esta semana cruza al lunes
+  const nextWeekStart = weekStart ? addDaysStr(weekStart, 7) : null;
+  if(nextWeekStart){
+    const nextSch = window.getSchedule ? window.getSchedule(userId, nextWeekStart) : getSchedule(userId);
+    const nextLunes = nextSch?.Lunes || [];
+    nextLunes.forEach(seg => {
+      const m = seg.match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
+      if(!m) return;
+      let inicio = parseInt(m[1]) + parseInt(m[2])/60;
+      let fin = parseInt(m[3]) + parseInt(m[4])/60;
+      // Solo nos interesan los que empiezan a las 00:00 (continuación de un turno del domingo)
+      if(inicio === 0){
+        allSegs.push({ dayIdx: 7, dayName: 'Lunes(next)', inicio, fin, raw: seg });
+      }
+    });
+  }
+
+  // 2. Ordenar segmentos por día y hora de inicio
+  allSegs.sort((a,b) => a.dayIdx - b.dayIdx || a.inicio - b.inicio);
+
+  // 3. MERGE: unir segmentos continuos que cruzan medianoche
+  // Un segmento que termina a las 24:00 (o 00:00 del día siguiente) se une
+  // con el segmento que empieza a las 00:00 del día siguiente.
+  const mergedTurnos = [];
+  allSegs.forEach(seg => {
+    const last = mergedTurnos[mergedTurnos.length - 1];
+    if(last){
+      // Calcular fin real del último turno (en horas absolutas desde su inicio de día)
+      let lastFinAbs = last.dayIdx * 24 + (last.fin <= last.inicio ? last.fin + 24 : last.fin);
+      // Calcular inicio real del segmento actual
+      let curInicioAbs = seg.dayIdx * 24 + seg.inicio;
+      // Si el segmento actual empieza exactamente donde terminó el anterior, unirlos
+      if(Math.abs(curInicioAbs - lastFinAbs) < 0.01){
+        // Merge: extender el fin del último turno
+        let newFinAbs = seg.dayIdx * 24 + (seg.fin <= seg.inicio ? seg.fin + 24 : seg.fin);
+        let durTotal = newFinAbs - (last.dayIdx * 24 + last.inicio);
+        last.fin = last.inicio + durTotal; // mantener relativo al día de inicio
+        last.merged = true;
+        last.mergedDays = (last.mergedDays || 1) + 1;
+        return;
+      }
+    }
+    mergedTurnos.push({ ...seg });
+  });
+
+  // 4. Agrupar turnos por día de INICIO y calcular horas por día
+  const dayMap = {}; // dayName -> { workedHours, turnos: [] }
+  mergedTurnos.forEach(t => {
+    if(t.dayIdx < 0 || t.dayIdx > 6) return; // ignorar los de semanas adyacentes (ya se mergearon)
+    let h = t.fin <= t.inicio ? t.fin + 24 - t.inicio : t.fin - t.inicio;
+    if(!dayMap[t.dayName]) dayMap[t.dayName] = { workedHours: 0, turnos: [] };
+    dayMap[t.dayName].workedHours += h;
+    dayMap[t.dayName].turnos.push(t);
+  });
+
+  // 5. Calcular horas extra por día
   const days = [];
   let total = 0;
+  let totalSemanal = 0;
+
   DAYS.forEach(day => {
-    const segs = (sch && sch[day]) || [];
-    const workedHours = segs.reduce((a,s)=>a+shiftHours(s),0);
-    const normalHours = getNormalHours(userId, day);
-    const extraHours = Math.max(0, workedHours - normalHours);
-    if(workedHours > 0 || extraHours > 0){
-      days.push({ day, normalHours, workedHours, extraHours });
-      total += extraHours;
-    }
+    const dm = dayMap[day];
+    if(!dm || dm.workedHours === 0) return;
+    const workedHours = dm.workedHours;
+
+    // Determinar tipo de jornada del día
+    let jornadaTipoDia = 'diurna';
+    let maxNocturnas = 0;
+    dm.turnos.forEach(t => {
+      let h = t.fin <= t.inicio ? t.fin + 24 - t.inicio : t.fin - t.inicio;
+      const jt = determinarJornadaTurno(t.inicio, t.fin <= t.inicio ? t.fin + 24 : t.fin);
+      if(jt === 'nocturna'){
+        maxNocturnas = Math.max(maxNocturnas, h);
+        jornadaTipoDia = (jornadaTipoDia === 'diurna') ? 'nocturna' : 'mixta';
+      } else if(jt === 'mixta'){
+        jornadaTipoDia = 'mixta';
+      }
+    });
+
+    const tipoJornada = config.acumulativa ? 'mixta_acumulativa' : (maxNocturnas >= 3.5 ? 'nocturna' : jornadaTipoDia);
+    const limiteDiario = JORNADA_LIMITES[tipoJornada]?.diario || 8;
+    const extraProg = 0; // Sin extras programadas: solo se calcula por reglas legales
+    const normalHours = Math.min(workedHours, limiteDiario);
+    let extraHours = Math.max(0, workedHours - limiteDiario);
+
+    totalSemanal += workedHours;
+    const alerta12h = workedHours > 12 ? `${workedHours}h supera el límite de 12h` : null;
+
+    days.push({ day, normalHours, workedHours, extraHours, jornadaTipo: tipoJornada, alerta12h });
+    total += extraHours;
   });
+
+  // Verificar límite semanal
+  const tipoJornadaSemanal = config.acumulativa ? 'mixta_acumulativa' : config.jornada;
+  const limiteSemanal = JORNADA_LIMITES[tipoJornadaSemanal]?.semanal || 48;
+  const extraSemanal = Math.max(0, totalSemanal - limiteSemanal);
+  if(extraSemanal > 0 && total < extraSemanal){
+    const extraFaltante = extraSemanal - total;
+    if(days.length > 0) days[days.length-1].extraHours += extraFaltante;
+    total = extraSemanal;
+  }
+
   return { total, days };
 }
 
@@ -1501,6 +1707,7 @@ function getUserColor(u){
   if(!u) return '#64748b';
   // Forzar color rosado para Nathaly (sobreescribe cualquier valor en Firestore)
   if(u.name && u.name.includes('Nathaly')) return '#ec4899';
+  if(u.name && (u.name.includes('Luis') && u.name.includes('Araya'))) return '#22c55e';
   if(u.color) return u.color;
   if(u.name && COLOR_DEFAULT_BY_NAME[u.name]) return COLOR_DEFAULT_BY_NAME[u.name];
   // Asignar color por índice en el depto (para usuarios nuevos)
@@ -1831,15 +2038,19 @@ function renderHorasExtra(dateFrom, dateTo){
     let totalExtra = 0, totalWorked = 0, totalNormal = 0;
     const rows = allUsers.map(u=>{
       const ot = getOT(u.id);
+      const cfg = getOvertimeConfig(u.id);
+      const jornadaTxt = cfg ? (cfg.acumulativa ? 'Mixta acumulativa' : (cfg.jornada.charAt(0).toUpperCase() + cfg.jornada.slice(1))) : '—';
+      const hasAlert12 = ot.days && ot.days.some(d=>d.alerta12h);
       totalExtra += ot.total;
       totalWorked += ot.worked;
       totalNormal += ot.normal;
-      const detailBtn = ot.total > 0 ? `<button class="btn ghost sm" onclick="viewOvertimeDetail('${u.id}','${ws}'${isRange?`,'${dateFrom}','${dateTo}'`:''})">📊 Ver detalle</button>` : '';
+      const detailBtn = ot.total > 0 || hasAlert12 ? `<button class="btn ghost sm" onclick="viewOvertimeDetail('${u.id}','${ws}'${isRange?`,'${dateFrom}','${dateTo}'`:''})">📊 Ver detalle</button>` : '';
       return `<tr>
         <td><div class="who"><div class="avatar ${deptClass(u.dept)}">${initials(u.name)}</div><div class="meta"><b>${u.name}</b><small>${u.dept}</small></div></div></td>
+        <td><span class="badge dept">${jornadaTxt}</span></td>
         <td>${ot.worked}h</td>
         <td>${ot.normal}h</td>
-        <td style="color:${ot.total>0?'var(--warning)':'var(--muted-2)'};font-weight:${ot.total>0?'700':'400'}">${ot.total}h ${ot.total>0?'⚠️':''}</td>
+        <td style="color:${ot.total>0?'var(--warning)':'var(--muted-2)'};font-weight:${ot.total>0?'700':'400'}">${ot.total}h ${ot.total>0?'⚠️':''}${hasAlert12?' 🚨':''}</td>
         <td class="actions">${detailBtn}</td>
       </tr>`;
     }).join('');
@@ -1858,7 +2069,7 @@ function renderHorasExtra(dateFrom, dateTo){
         <div class="panel-body flush">
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Técnico</th><th>Horas trabajadas</th><th>Horas normales</th><th>Horas extra</th><th>Acciones</th></tr></thead>
+              <thead><tr><th>Técnico</th><th>Jornada</th><th>Trabajadas</th><th>Ordinarias</th><th>Extra</th><th>Acciones</th></tr></thead>
               <tbody>${rows || emptyRow(5,'Sin técnicos activos.')}</tbody>
             </table>
           </div>
@@ -1869,12 +2080,15 @@ function renderHorasExtra(dateFrom, dateTo){
     const me = DB.users.find(u=>u.id===session.userId);
     if(!me){ content.innerHTML = '<p style="color:var(--muted)">No se pudo cargar tu perfil.</p>'; return; }
     const ot = getOT(me.id);
+    const cfg = getOvertimeConfig(me.id);
+    const myJornada = cfg ? (cfg.acumulativa ? 'Mixta acumulativa' : (cfg.jornada.charAt(0).toUpperCase() + cfg.jornada.slice(1))) : '—';
     const daysHtml = ot.days.map(d=>{
       const extraColor = d.extraHours > 0 ? 'var(--warning)' : 'var(--muted-2)';
       const extraWeight = d.extraHours > 0 ? '700' : '400';
       const dateLabel = isRange && d.date ? `${fmtDayLabel(d.date)} (${d.day})` : d.day;
+      const alertaBadge = d.alerta12h ? `<br><span style="color:var(--danger);font-size:10px">🚨 ${esc(d.alerta12h)}</span>` : '';
       return `<tr>
-        <td>${dateLabel}</td>
+        <td>${dateLabel}${alertaBadge}</td>
         <td>${d.workedHours}h</td>
         <td>${d.normalHours}h</td>
         <td style="color:${extraColor};font-weight:${extraWeight}">${d.extraHours}h ${d.extraHours>0?'⚠️':''}</td>
@@ -1911,30 +2125,98 @@ function renderHorasExtra(dateFrom, dateTo){
 function calculateOvertimeRange(userId, dateFrom, dateTo){
   const u = DB.users.find(x=>x.id===userId);
   if(!u) return { total:0, worked:0, normal:0, days:[] };
+  const config = getOvertimeConfig(userId);
+  if(!config) return { total:0, worked:0, normal:0, days:[] };
+
   const days = [];
   let total = 0, worked = 0, normal = 0;
+
+  // Iterar día por día en el rango
   let cur = dateFrom;
   let guard = 0;
   while(cur <= dateTo && guard < 400){
     const dayName = dayNameOf(cur);
-    // Determinar a qué semana pertenece esta fecha y obtener el schedule
-    const monday = addDaysStr(cur, -((dateFromStr(cur).getDay()+6)%7));
+    // Determinar el lunes de la semana de esta fecha
+    const dow = (dateFromStr(cur).getDay()+6)%7;
+    const monday = addDaysStr(cur, -dow);
     const sch = window.getSchedule ? window.getSchedule(userId, monday) : getSchedule(userId);
+
+    // Usar la misma lógica de calculateOvertime: recolectar segmentos y mergear
+    const allSegs = [];
+    // Segmentos del día actual
     const segs = (sch && sch[dayName]) || [];
-    // Verificar si esta fecha cae en el rango del lunes de esa semana
-    // Solo contamos si la fecha está dentro del rango del schedule de esa semana
-    const workedHours = segs.reduce((a,s)=>a+shiftHours(s),0);
-    const normalHours = getNormalHours(userId, dayName);
-    const extraHours = Math.max(0, workedHours - normalHours);
-    if(workedHours > 0 || extraHours > 0){
-      days.push({ date: cur, day: dayName, normalHours, workedHours, extraHours });
-      total += extraHours;
-      worked += workedHours;
-      normal += normalHours;
-    }
+    segs.forEach(seg => {
+      const m = seg.match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
+      if(!m) return;
+      let inicio = parseInt(m[1]) + parseInt(m[2])/60;
+      let fin = parseInt(m[3]) + parseInt(m[4])/60;
+      allSegs.push({ inicio, fin });
+    });
+
+    // Buscar segmento del día anterior si cruza medianoche hacia este día
+    const prevDayName = DAYS[(DAYS.indexOf(dayName) + 6) % 7];
+    const prevSegs = (sch && sch[prevDayName]) || [];
+    prevSegs.forEach(seg => {
+      const m = seg.match(/(\d{2}):(\d{2})\s*-\s*(\d{2}):(\d{2})/);
+      if(!m) return;
+      let inicio = parseInt(m[1]) + parseInt(m[2])/60;
+      let fin = parseInt(m[3]) + parseInt(m[4])/60;
+      // Si el turno del día anterior cruza medianoche (fin <= inicio o fin == 24)
+      if(fin <= inicio || fin === 24){
+        // Este turno del día anterior continúa en la madrugada de este día
+        // Las horas que caen en este día son de 00:00 hasta fin
+        const horasEnEsteDia = fin === 0 ? 0 : (fin === 24 ? 0 : fin);
+        if(horasEnEsteDia > 0){
+          allSegs.push({ inicio: 0, fin: horasEnEsteDia, fromPrevDay: true });
+        }
+      }
+    });
+
+    // Merge de segmentos continuos
+    allSegs.sort((a,b) => a.inicio - b.inicio);
+    const merged = [];
+    allSegs.forEach(seg => {
+      const last = merged[merged.length - 1];
+      if(last && Math.abs(last.fin - seg.inicio) < 0.01){
+        last.fin = seg.fin > last.fin ? seg.fin : last.fin;
+        return;
+      }
+      merged.push({ ...seg });
+    });
+
+    // Calcular horas trabajadas
+    let workedHours = 0;
+    let maxNocturnas = 0;
+    let jornadaTipoDia = 'diurna';
+
+    merged.forEach(t => {
+      let h = t.fin <= t.inicio ? t.fin + 24 - t.inicio : t.fin - t.inicio;
+      workedHours += h;
+      const jt = determinarJornadaTurno(t.inicio, t.fin <= t.inicio ? t.fin + 24 : t.fin);
+      if(jt === 'nocturna'){
+        maxNocturnas = Math.max(maxNocturnas, h);
+        jornadaTipoDia = (jornadaTipoDia === 'diurna') ? 'nocturna' : 'mixta';
+      } else if(jt === 'mixta'){
+        jornadaTipoDia = 'mixta';
+      }
+    });
+
+    if(workedHours === 0){ cur = addDaysStr(cur, 1); guard++; continue; }
+
+    const tipoJornada = config.acumulativa ? 'mixta_acumulativa' : (maxNocturnas >= 3.5 ? 'nocturna' : jornadaTipoDia);
+    const limiteDiario = JORNADA_LIMITES[tipoJornada]?.diario || 8;
+    const normalHours = Math.min(workedHours, limiteDiario);
+    const extraHours = Math.max(0, workedHours - limiteDiario);
+
+    days.push({ date: cur, day: dayName, normalHours, workedHours, extraHours });
+    total += extraHours;
+    worked += workedHours;
+    normal += normalHours;
+
     cur = addDaysStr(cur, 1);
     guard++;
   }
+
   return { total, worked, normal, days };
 }
 
